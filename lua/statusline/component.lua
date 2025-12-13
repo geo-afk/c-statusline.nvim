@@ -68,8 +68,10 @@ function M.get_or_create_hl(fg, bg, opts)
 	bg = bg or "StatusLine"
 	fg = fg or "#ffffff"
 
-	-- Create cache key
-	local key = table.concat({ tostring(fg), tostring(bg), opts.bold or "", opts.italic or "" }, "_")
+	-- Create cache key (fixed to handle booleans as strings)
+	local bold_str = opts.bold and "bold" or ""
+	local italic_str = opts.italic and "italic" or ""
+	local key = table.concat({ tostring(fg), tostring(bg), bold_str, italic_str }, "_")
 
 	if hl_cache[key] then
 		return hl_cache[key]
