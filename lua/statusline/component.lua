@@ -8,33 +8,33 @@ M._hls = {}
 -- Icon sets with fallbacks
 local icon_sets = {
 	nerd_v3 = {
-		branch = "",
-		added = "",
-		changed = "",
-		removed = "",
-		error = "",
-		warn = "",
-		info = "",
-		hint = "󰌵",
-		lock = "󰍁",
+		branch = " ",
+		added = " ",
+		changed = "󰦒 ",
+		removed = " ",
+		error = " ",
+		warn = " ",
+		info = " ",
+		hint = "󰌵 ",
+		lock = "󰍁 ",
 		separator = "│",
-		angle_right = "",
-		angle_left = "",
+		angle_right = "",
+		angle_left = "",
 		dot = "•",
 	},
 	nerd_v2 = {
-		branch = "",
-		added = "",
-		changed = "",
-		removed = "",
-		error = "",
-		warn = "",
-		info = "",
-		hint = "",
-		lock = "",
+		branch = " ",
+		added = " ",
+		changed = "󰦒 ",
+		removed = " ",
+		error = " ",
+		warn = " ",
+		info = " ",
+		hint = "󰌵 ",
+		lock = "󰍁 ",
 		separator = "│",
-		angle_right = "",
-		angle_left = "",
+		angle_right = "❯",
+		angle_left = "❮",
 		dot = "•",
 	},
 	ascii = {
@@ -213,7 +213,6 @@ function M.fileinfo(opts)
 		.. hl_str("SLDim", size_str)
 end
 
--- Git branch with error handling
 function M.git_branch()
 	local ok, branch = pcall(function()
 		return vim.b.gitsigns_head
