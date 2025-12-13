@@ -5,11 +5,75 @@ local hl_str = utils.hl_str
 local M = {}
 M._hls = {}
 
+-- Icon sets with fallbacks
+local icon_sets = {
+	nerd_v3 = {
+		branch = "",
+		added = "",
+		changed = "",
+		removed = "",
+		error = "",
+		warn = "",
+		info = "",
+		hint = "󰌵",
+		lock = "󰍁",
+		separator = "│",
+		angle_right = "",
+		angle_left = "",
+		dot = "•",
+	},
+	nerd_v2 = {
+		branch = "",
+		added = "",
+		changed = "",
+		removed = "",
+		error = "",
+		warn = "",
+		info = "",
+		hint = "",
+		lock = "",
+		separator = "│",
+		angle_right = "",
+		angle_left = "",
+		dot = "•",
+	},
+	ascii = {
+		branch = "*",
+		added = "+",
+		changed = "~",
+		removed = "-",
+		error = "E",
+		warn = "W",
+		info = "I",
+		hint = "H",
+		lock = "L",
+		separator = "|",
+		angle_right = ">",
+		angle_left = "<",
+		dot = "·",
+	},
+}
+
+-- Get icon based on configured set
+function M.get_icon(name)
+	local statusline = package.loaded["statusline"]
+	local icon_set = (statusline and statusline.config and statusline.config.icon_set) or "nerd_v3"
+	return icon_sets[icon_set][name] or icon_sets.ascii[name] or "?"
+end
+
 -- Optimized highlight creation with caching
+local hl_cache = {}
 function M.get_or_create_hl(fg, bg, opts)
 	opts = opts or {}
 	bg = bg or "StatusLine"
 	fg = fg or "#ffffff"
+
+	-- Create cache key
+	local key = table.concat({ tostring(fg), tostring(bg), opts.bold or "", opts.italic or "" }, "_")
+
+	if hl_cache[key] then
+		return hl_cache[key]
+	end
 
 	local sanitized_fg = tostring(fg):gsub("#", "")
 	local sanitized_bg = tostring(bg):gsub("#", "")
@@ -28,13 +92,15 @@ function M.get_or_create_hl(fg, bg, opts)
 		if tostring(bg):match("^#") then
 			bg_hl = { bg = bg }
 		else
-			bg_hl = vim.api.nvim_get_hl(0, { name = bg })
+			local ok, result = pcall(vim.api.nvim_get_hl, 0, { name = bg })
+			bg_hl = ok and result or nil
 		end
 
 		if tostring(fg):match("^#") then
 			fg_hl = { fg = fg }
 		else
-			fg_hl = vim.api.nvim_get_hl(0, { name = fg })
+			local ok, result = pcall(vim.api.nvim_get_hl, 0, { name = fg })
+			fg_hl = ok and result or nil
 		end
 
 		local bg_val = bg_hl and bg_hl.bg
@@ -49,7 +115,9 @@ function M.get_or_create_hl(fg, bg, opts)
 		M._hls[name] = true
 	end
 
-	return "%#" .. name .. "#"
+	local result = "%#" .. name .. "#"
+	hl_cache[key] = result
+	return result
 end
 
 -- Simple padding
@@ -57,18 +125,31 @@ function M.padding(nr)
 	return string.rep(" ", nr or 1)
 end
 
--- Simple separator
-function M.separator()
-	return hl_str("SLSeparator", "│")
+-- Configurable separator
+local separator_cache = {}
+function M.separator(style)
+	style = style or "vertical"
+
+	if separator_cache[style] then
+		return separator_cache[style]
+	end
+
+	local icon = M.get_icon(style == "vertical" and "separator" or style)
+	local result = hl_str("SLSeparator", icon)
+	separator_cache[style] = result
+	return result
 end
 
--- Enhanced file icon
+-- Enhanced file icon with error handling
 function M.file_icon()
 	local ok, devicons = pcall(require, "nvim-web-devicons")
 	local icon, igroup
 
 	if ok then
-		icon, igroup = devicons.get_icon(vim.fn.expand("%:t"))
+		local filename = vim.fn.expand("%:t")
+		if filename and filename ~= "" then
+			icon, igroup = devicons.get_icon(filename)
+		end
 	end
 
 	if not icon then
@@ -77,17 +158,17 @@ function M.file_icon()
 	end
 
 	if not vim.bo.modifiable then
-		icon = "🔒"
+		icon = M.get_icon("lock")
 		igroup = "SLNotModifiable"
 	end
 
 	return hl_str(igroup, icon)
 end
 
--- File info with size cache (unchanged)
+-- File info with size cache
 local file_cache = {}
 function M.fileinfo(opts)
-	opts = opts or { add_icon = true }
+	opts = opts or { add_icon = true, show_size = true }
 
 	local buf = vim.api.nvim_get_current_buf()
 	if not file_cache[buf] then
@@ -110,40 +191,41 @@ function M.fileinfo(opts)
 	local readonly = (not vim.bo.modifiable or vim.bo.readonly) and " " or ""
 
 	local size_str = ""
-	if cached.size > 1024 * 1024 then
-		size_str = string.format("%.1fMB", cached.size / (1024 * 1024))
-	elseif cached.size > 1024 then
-		size_str = string.format("%.1fKB", cached.size / 1024)
-	elseif cached.size > 0 then
-		size_str = string.format("%dB", cached.size)
-	else
-		size_str = "new"
+	if opts.show_size then
+		if cached.size > 1024 * 1024 then
+			size_str = string.format("%.1fMB", cached.size / (1024 * 1024))
+		elseif cached.size > 1024 then
+			size_str = string.format("%.1fKB", cached.size / 1024)
+		elseif cached.size > 0 then
+			size_str = string.format("%dB", cached.size)
+		else
+			size_str = "new"
+		end
+		size_str = " [" .. size_str .. "]"
 	end
 
 	return (opts.add_icon and (M.file_icon() .. " ") or "")
 		.. hl_str("SLFileInfo", name)
 		.. readonly
 		.. hl_str("SLModified", modified)
-		.. hl_str("SLDim", " [" .. size_str .. "]")
+		.. hl_str("SLDim", size_str)
 end
 
--- Git branch (with icon, lualine-style)
+-- Git branch with error handling
 function M.git_branch()
-	-- Icon restored
-	local icon = " "
+	local ok, branch = pcall(function()
+		return vim.b.gitsigns_head
+	end)
 
-	-- Use gitsigns buffer var (fastest & non-blocking)
-	local branch = vim.b.gitsigns_head
-	if not branch or branch == "" then
+	if not ok or not branch or branch == "" then
 		return ""
 	end
 
-	-- Avoid string concat cost by building minimal pieces
-	-- hl_str(name, text) → returns highlighted text
-	return hl_str("SLGitBranch", icon .. branch) .. " "
+	local icon = M.get_icon("branch")
+	return hl_str("SLGitBranch", icon .. " " .. branch) .. " "
 end
 
--- Git status with icons (unchanged)
+-- Git status with icons and caching
 function M.git_status()
 	if not vim.b.status_cache then
 		vim.b.status_cache = {}
@@ -155,23 +237,25 @@ function M.git_status()
 	local stale = (lines > 10000) and 30000 or 10000
 
 	if not cache or (now - (cache.timestamp or 0)) > stale then
-		local gitsigns = vim.b.gitsigns_status_dict
+		local ok, gitsigns = pcall(function()
+			return vim.b.gitsigns_status_dict
+		end)
 
-		if not gitsigns then
+		if not ok or not gitsigns then
 			cache = { str = "", timestamp = now }
 		else
 			local parts = {}
-			local icons = { added = " ", changed = "󰦒 ", removed = " " }
+
 			if gitsigns.added and gitsigns.added > 0 then
-				table.insert(parts, hl_str("SLGitAdded", icons.added .. gitsigns.added))
+				table.insert(parts, hl_str("SLGitAdded", M.get_icon("added") .. " " .. gitsigns.added))
 			end
 
 			if gitsigns.changed and gitsigns.changed > 0 then
-				table.insert(parts, hl_str("SLGitChanged", icons.changed .. gitsigns.changed))
+				table.insert(parts, hl_str("SLGitChanged", M.get_icon("changed") .. " " .. gitsigns.changed))
 			end
 
 			if gitsigns.removed and gitsigns.removed > 0 then
-				table.insert(parts, hl_str("SLGitRemoved", icons.removed .. gitsigns.removed))
+				table.insert(parts, hl_str("SLGitRemoved", M.get_icon("removed") .. " " .. gitsigns.removed))
 			end
 
 			local str = #parts == 0 and "" or (table.concat(parts, " ") .. " ")
@@ -184,7 +268,7 @@ function M.git_status()
 	return cache.str or ""
 end
 
--- Diagnostics with detailed counts (unchanged)
+-- Diagnostics with detailed counts
 function M.diagnostics()
 	if not vim.b.status_cache then
 		vim.b.status_cache = {}
@@ -196,45 +280,53 @@ function M.diagnostics()
 	local stale = (lines > 10000) and 30000 or 10000
 
 	if not cache or (now - (cache.timestamp or 0)) > stale then
-		local function get_sev(s)
-			return #vim.diagnostic.get(0, { severity = s })
+		local ok, result = pcall(function()
+			local function get_sev(s)
+				return #vim.diagnostic.get(0, { severity = s })
+			end
+
+			return {
+				errors = get_sev(vim.diagnostic.severity.ERROR),
+				warnings = get_sev(vim.diagnostic.severity.WARN),
+				info = get_sev(vim.diagnostic.severity.INFO),
+				hints = get_sev(vim.diagnostic.severity.HINT),
+			}
+		end)
+
+		if not ok then
+			cache = { str = "", timestamp = now }
+		else
+			local res = result
+			local total = res.errors + res.warnings + res.hints + res.info
+			local parts = {}
+
+			if res.errors > 0 then
+				table.insert(parts, hl_str("DiagnosticError", M.get_icon("error") .. " " .. res.errors))
+			end
+
+			if res.warnings > 0 then
+				table.insert(parts, hl_str("DiagnosticWarn", M.get_icon("warn") .. " " .. res.warnings))
+			end
+
+			if res.info > 0 then
+				table.insert(parts, hl_str("DiagnosticInfo", M.get_icon("info") .. " " .. res.info))
+			end
+
+			if res.hints > 0 then
+				table.insert(parts, hl_str("DiagnosticHint", M.get_icon("hint") .. " " .. res.hints))
+			end
+
+			local str = vim.bo.modifiable and total > 0 and (table.concat(parts, " ") .. " ") or ""
+			cache = { str = str, timestamp = now }
 		end
 
-		local res = {
-			errors = get_sev(vim.diagnostic.severity.ERROR),
-			warnings = get_sev(vim.diagnostic.severity.WARN),
-			info = get_sev(vim.diagnostic.severity.INFO),
-			hints = get_sev(vim.diagnostic.severity.HINT),
-		}
-
-		local total = res.errors + res.warnings + res.hints + res.info
-		local parts = {}
-
-		if res.errors > 0 then
-			table.insert(parts, hl_str("DiagnosticError", " " .. res.errors))
-		end
-
-		if res.warnings > 0 then
-			table.insert(parts, hl_str("DiagnosticWarn", " " .. res.warnings))
-		end
-
-		if res.info > 0 then
-			table.insert(parts, hl_str("DiagnosticInfo", " " .. res.info))
-		end
-
-		if res.hints > 0 then
-			table.insert(parts, hl_str("DiagnosticHint", " " .. res.hints))
-		end
-
-		local str = vim.bo.modifiable and total > 0 and (table.concat(parts, " ") .. " ") or ""
-		cache = { str = str, timestamp = now }
 		vim.b.status_cache.diagnostics = cache
 	end
 
 	return cache.str or ""
 end
 
--- File encoding (unchanged)
+-- File encoding
 function M.file_encoding()
 	local enc = vim.bo.fileencoding or vim.o.encoding
 	if enc:upper() == "UTF-8" then
@@ -243,7 +335,7 @@ function M.file_encoding()
 	return hl_str("SLEncoding", enc:upper()) .. " "
 end
 
--- File format (unchanged)
+-- File format
 function M.file_format()
 	local format = vim.bo.fileformat
 	local icons = {
@@ -254,17 +346,17 @@ function M.file_format()
 	return hl_str("SLFormat", icons[format] or format) .. " "
 end
 
--- Position (unchanged)
+-- Position
 function M.position()
 	return hl_str("SLPosition", "%3l:%-2c")
 end
 
--- Total lines (unchanged)
+-- Total lines
 function M.total_lines()
 	return hl_str("SLDim", "/%L")
 end
 
--- Progress bar with percentage (unchanged)
+-- Progress bar with percentage and caching
 local progress_cache = {}
 function M.progress_bar()
 	local buf = vim.api.nvim_get_current_buf()
@@ -315,7 +407,7 @@ function M.progress_bar()
 	return cache.str
 end
 
--- Filetype (unchanged)
+-- Filetype
 function M.filetype()
 	local ft = vim.bo.filetype
 	if ft == "" then
@@ -324,16 +416,16 @@ function M.filetype()
 	return hl_str("SLFiletype", ft:upper())
 end
 
--- Macro recording (unchanged)
+-- Macro recording
 function M.macro_recording()
-	local reg = vim.fn.reg_recording()
-	if reg == "" then
+	local ok, reg = pcall(vim.fn.reg_recording)
+	if not ok or reg == "" then
 		return ""
 	end
 	return hl_str("SLModified", " ● REC @" .. reg .. " ")
 end
 
--- Maximized window (unchanged)
+-- Maximized window
 function M.maximized_status()
 	if not vim.b.is_zoomed then
 		return ""
@@ -341,7 +433,7 @@ function M.maximized_status()
 	return hl_str("SLModified", " ⛶ ")
 end
 
--- Search count (unchanged)
+-- Search count
 function M.search_count()
 	if vim.v.hlsearch == 0 then
 		return ""
@@ -355,15 +447,44 @@ function M.search_count()
 	return hl_str("SLMatches", string.format(" [%d/%d] ", result.current, result.total))
 end
 
--- Cache invalidation (unchanged)
+-- Enhanced cache invalidation
 local function invalidate_caches()
 	vim.b.status_cache = nil
 	file_cache[vim.api.nvim_get_current_buf()] = nil
 end
 
-vim.api.nvim_create_autocmd({ "BufEnter", "FileType", "BufWritePost", "BufLeave" }, {
+-- Cleanup for large buffers
+local function cleanup_large_buffer_cache(bufnr)
+	local ok, lines = pcall(vim.api.nvim_buf_line_count, bufnr)
+	if ok and lines > 50000 then
+		progress_cache[bufnr] = nil
+		file_cache[bufnr] = nil
+	end
+end
+
+-- Setup cache management
+vim.api.nvim_create_augroup("StatuslineCache", { clear = true })
+
+vim.api.nvim_create_autocmd({ "BufEnter", "FileType", "BufWritePost" }, {
 	callback = invalidate_caches,
-	group = vim.api.nvim_create_augroup("StatuslineCache", { clear = true }),
+	group = "StatuslineCache",
+})
+
+vim.api.nvim_create_autocmd("BufDelete", {
+	callback = function(args)
+		cleanup_large_buffer_cache(args.buf)
+	end,
+	group = "StatuslineCache",
+})
+
+-- Specific cache invalidation on diagnostic changes
+vim.api.nvim_create_autocmd("DiagnosticChanged", {
+	callback = function()
+		if vim.b.status_cache then
+			vim.b.status_cache.diagnostics = nil
+		end
+	end,
+	group = "StatuslineCache",
 })
 
 return M
