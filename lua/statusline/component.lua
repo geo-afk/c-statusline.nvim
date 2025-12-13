@@ -227,14 +227,17 @@ function M.git_branch()
 end
 
 -- Git status with icons and caching
+
 function M.git_status()
 	if not vim.b.status_cache then
 		vim.b.status_cache = {}
 	end
-
 	local cache = vim.b.status_cache.git
-	local now = vim.loop.now()
+	-- get high-resolution time in ms
+	local now_ns = vim.loop.hrtime()
+	local now = now_ns / 1e6
 	local lines = vim.api.nvim_buf_line_count(0)
+	-- stale threshold in ms
 	local stale = (lines > 10000) and 30000 or 10000
 
 	if not cache or (now - (cache.timestamp or 0)) > stale then
@@ -337,12 +340,13 @@ function M.file_encoding()
 end
 
 -- File format
+
 function M.file_format()
 	local format = vim.bo.fileformat
 	local icons = {
-		unix = "",
-		dos = "",
-		mac = "",
+		unix = " ", -- LF (Unix / Linux)
+		dos = " ", -- CRLF (Windows)
+		mac = " ", -- CR (Classic Mac)
 	}
 	return hl_str("SLFormat", icons[format] or format) .. " "
 end

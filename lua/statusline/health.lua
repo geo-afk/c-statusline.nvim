@@ -57,13 +57,11 @@ function M.check()
 	end
 
 	-- Check LSP and diagnostics
-	local clients = vim.lsp.get_active_clients()
+	local clients = vim.lsp.get_clients()
 	if #clients > 0 then
 		vim.health.ok(string.format("LSP active (%d client(s))", #clients))
 	else
-		vim.health.info("No active LSP clients", {
-			"Diagnostic counts will be shown when LSP is active",
-		})
+		vim.health.info("No active LSP clients, Diagnostic counts will be shown when LSP is active")
 	end
 
 	-- Check statusline configuration
