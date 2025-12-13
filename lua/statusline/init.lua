@@ -212,7 +212,7 @@ function M.setup(opts)
 			"neo-tree",
 			"minifiles",
 			"oil",
-			"Telescope",
+			"TelescopePrompt",
 			"fzf",
 			"snacks_picker_input",
 			"alpha",
