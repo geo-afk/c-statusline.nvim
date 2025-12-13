@@ -1,5 +1,5 @@
 ---@module "custom.statusline.components"
-local utils = require("custom.statusline.utils")
+local utils = require("statusline.utils")
 local hl_str = utils.hl_str
 
 local M = {}

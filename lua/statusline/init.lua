@@ -1,7 +1,7 @@
 ---@module "custom.statusline"
 local M = {}
 
-local components = require("custom.statusline.components")
+local components = require("statusline.components")
 
 --- Default config
 local defaults = {
@@ -16,9 +16,14 @@ function M.setup(opts)
 
 	-- Color palette
 	local statusline_hl = vim.api.nvim_get_hl(0, { name = "StatusLine" })
-	local bg_hex = statusline_hl and statusline_hl.bg and string.format("#%06x", statusline_hl.bg) or opts.bg_hex
-	local fg_main = opts.fg_main
-	local fg_dim = opts.fg_dim
+	local bg_hex
+	if statusline_hl and statusline_hl.bg and statusline_hl.bg ~= 0 then
+		bg_hex = string.format("#%06x", statusline_hl.bg)
+	else
+		bg_hex = opts.bg_hex or "#1f2335" -- fallback to config or default
+	end
+	local fg_main = opts.fg_main or "#c0caf5"
+	local fg_dim = opts.fg_dim or "#565f89"
 
 	-- Lualine-style highlight groups
 	local highlights = {
@@ -244,7 +249,7 @@ function M.setup(opts)
 	end
 
 	-- Set the statusline
-	vim.o.statusline = "%!luaeval(\"require('custom.statusline').Status_line()\")"
+	vim.o.statusline = "%!luaeval(\"require('statusline').Status_line()\")"
 
 	-- Smart redraw on relevant events
 	vim.api.nvim_create_augroup("StatuslineEvents", { clear = true })
