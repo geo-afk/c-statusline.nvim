@@ -9,7 +9,7 @@ local defaults = {
 	fg_main = "#c0caf5",
 	fg_dim = "#565f89",
 
-	-- New configuration options
+	-- Configuration options
 	icon_set = "nerd_v3", -- "nerd_v3", "nerd_v2", "ascii"
 	separator_style = "vertical", -- "vertical", "angle_right", "dot"
 
@@ -18,6 +18,9 @@ local defaults = {
 		git = { enabled = true },
 		diagnostics = { enabled = true },
 		file_info = { enabled = true, show_size = true },
+		folder = { enabled = true }, -- NEW: folder display
+		lsp = { enabled = true }, -- NEW: LSP status
+		position = { enabled = true, style = "enhanced" }, -- NEW: enhanced position with labels
 		progress = { enabled = true, style = "bar" },
 	},
 
@@ -131,51 +134,51 @@ function M.setup(opts)
 	-- Mode configuration with modern icons
 	local mode_config = {
 		-- Normal modes
-		n = { name = "NORMAL", hl = "StatusNormal", icon = "󰋜", desc = "Normal" },
-		no = { name = "N·OP", hl = "StatusNormal", icon = "󰋜", desc = "Operator Pending" },
-		nov = { name = "N·OP·V", hl = "StatusNormal", icon = "󰋜", desc = "Operator Pending Char" },
-		noV = { name = "N·OP·L", hl = "StatusNormal", icon = "󰋜", desc = "Operator Pending Line" },
-		["no\22"] = { name = "N·OP·B", hl = "StatusNormal", icon = "󰋜", desc = "Operator Pending Block" },
+		n = { name = "NORMAL", hl = "StatusNormal", icon = "", desc = "Normal" },
+		no = { name = "N·OP", hl = "StatusNormal", icon = "", desc = "Operator Pending" },
+		nov = { name = "N·OP·V", hl = "StatusNormal", icon = "", desc = "Operator Pending Char" },
+		noV = { name = "N·OP·L", hl = "StatusNormal", icon = "", desc = "Operator Pending Line" },
+		["no\22"] = { name = "N·OP·B", hl = "StatusNormal", icon = "", desc = "Operator Pending Block" },
 
 		-- Visual modes
-		v = { name = "VISUAL", hl = "StatusVisual", icon = "󰈈", desc = "Visual" },
-		V = { name = "V·LINE", hl = "StatusVisual", icon = "󰈈", desc = "Visual Line" },
-		["\22"] = { name = "V·BLOCK", hl = "StatusVisual", icon = "󰈈", desc = "Visual Block" },
+		v = { name = "VISUAL", hl = "StatusVisual", icon = "", desc = "Visual" },
+		V = { name = "V·LINE", hl = "StatusVisual", icon = "", desc = "Visual Line" },
+		["\22"] = { name = "V·BLOCK", hl = "StatusVisual", icon = "", desc = "Visual Block" },
 
 		-- Select modes
-		s = { name = "SELECT", hl = "StatusSelect", icon = "󰈈", desc = "Select" },
-		S = { name = "S·LINE", hl = "StatusSelect", icon = "󰈈", desc = "Select Line" },
-		["\19"] = { name = "S·BLOCK", hl = "StatusSelect", icon = "󰈈", desc = "Select Block" },
+		s = { name = "SELECT", hl = "StatusSelect", icon = "", desc = "Select" },
+		S = { name = "S·LINE", hl = "StatusSelect", icon = "", desc = "Select Line" },
+		["\19"] = { name = "S·BLOCK", hl = "StatusSelect", icon = "", desc = "Select Block" },
 
 		-- Insert modes
-		i = { name = "INSERT", hl = "StatusInsert", icon = "󰏫", desc = "Insert" },
-		ic = { name = "I·COMP", hl = "StatusInsert", icon = "󰏫", desc = "Insert Completion" },
-		ix = { name = "I·COMP", hl = "StatusInsert", icon = "󰏫", desc = "Insert Completion" },
+		i = { name = "INSERT", hl = "StatusInsert", icon = "", desc = "Insert" },
+		ic = { name = "I·COMP", hl = "StatusInsert", icon = "", desc = "Insert Completion" },
+		ix = { name = "I·COMP", hl = "StatusInsert", icon = "", desc = "Insert Completion" },
 
 		-- Replace modes
-		R = { name = "REPLACE", hl = "StatusReplace", icon = "󰛔", desc = "Replace" },
-		Rc = { name = "R·COMP", hl = "StatusReplace", icon = "󰛔", desc = "Replace Completion" },
-		Rv = { name = "V·REPLACE", hl = "StatusReplace", icon = "󰛔", desc = "Virtual Replace" },
-		Rx = { name = "R·COMP", hl = "StatusReplace", icon = "󰛔", desc = "Replace Completion" },
+		R = { name = "REPLACE", hl = "StatusReplace", icon = "", desc = "Replace" },
+		Rc = { name = "R·COMP", hl = "StatusReplace", icon = "", desc = "Replace Completion" },
+		Rv = { name = "V·REPLACE", hl = "StatusReplace", icon = "", desc = "Virtual Replace" },
+		Rx = { name = "R·COMP", hl = "StatusReplace", icon = "", desc = "Replace Completion" },
 
 		-- Command modes
-		c = { name = "COMMAND", hl = "StatusCommand", icon = "󰘳", desc = "Command" },
-		cv = { name = "EX", hl = "StatusCommand", icon = "󰘳", desc = "Ex" },
-		ce = { name = "EX", hl = "StatusCommand", icon = "󰘳", desc = "Ex" },
+		c = { name = "COMMAND", hl = "StatusCommand", icon = "", desc = "Command" },
+		cv = { name = "EX", hl = "StatusCommand", icon = "", desc = "Ex" },
+		ce = { name = "EX", hl = "StatusCommand", icon = "", desc = "Ex" },
 
 		-- Terminal mode
-		t = { name = "TERMINAL", hl = "StatusTerminal", icon = "󰆍", desc = "Terminal" },
+		t = { name = "TERMINAL", hl = "StatusTerminal", icon = "", desc = "Terminal" },
 
 		-- Misc
 		r = { name = "PROMPT", hl = "StatusCommand", icon = "?", desc = "Hit Enter Prompt" },
 		rm = { name = "MORE", hl = "StatusCommand", icon = "?", desc = "More" },
 		["r?"] = { name = "CONFIRM", hl = "StatusCommand", icon = "?", desc = "Confirm" },
-		["!"] = { name = "SHELL", hl = "StatusTerminal", icon = "", desc = "Shell" },
+		["!"] = { name = "SHELL", hl = "StatusTerminal", icon = "", desc = "Shell" },
 	}
 
 	-- Get mode info with error handling
 	local function get_mode_info()
-		local _, mode_data = pcall(vim.api.nvim_get_mode)
+		local ok, mode_data = pcall(vim.api.nvim_get_mode)
 		if not ok then
 			return mode_config.n
 		end
@@ -239,7 +242,8 @@ function M.setup(opts)
 			return table.concat({
 				mode_indicator(),
 				"%=",
-				components.position(),
+				opts.components.position.style == "enhanced" and components.position_enhanced()
+					or components.position(),
 				components.padding(1),
 			})
 		end
@@ -247,6 +251,7 @@ function M.setup(opts)
 		-- Left side
 		local left = { mode_indicator(), components.padding(2) }
 
+		-- Git information
 		if opts.components.git.enabled then
 			local git_branch = components.git_branch()
 			local git_status = components.git_status()
@@ -262,6 +267,16 @@ function M.setup(opts)
 			end
 		end
 
+		-- Folder name (NEW)
+		if opts.components.folder.enabled and width >= 100 then
+			local folder = components.folder_name()
+			if folder ~= "" then
+				table.insert(left, folder)
+				table.insert(left, section_sep())
+			end
+		end
+
+		-- File info
 		if opts.components.file_info.enabled then
 			table.insert(
 				left,
@@ -269,6 +284,7 @@ function M.setup(opts)
 			)
 		end
 
+		-- Diagnostics
 		if opts.components.diagnostics.enabled and width >= 100 then
 			local diagnostics = components.diagnostics()
 			if diagnostics ~= "" then
@@ -282,6 +298,15 @@ function M.setup(opts)
 
 		-- Right side
 		local right = {}
+
+		-- LSP status (NEW)
+		if opts.components.lsp.enabled and width >= 120 then
+			local lsp_status = components.lsp_status()
+			if lsp_status ~= "" then
+				table.insert(right, lsp_status)
+				table.insert(right, section_sep())
+			end
+		end
 
 		-- Show any active indicators (only in wider windows)
 		if width >= 100 then
@@ -322,8 +347,12 @@ function M.setup(opts)
 
 		-- Position info (always show)
 		table.insert(right, section_sep())
-		table.insert(right, components.position())
-		table.insert(right, components.total_lines())
+		if opts.components.position.style == "enhanced" then
+			table.insert(right, components.position_enhanced())
+		else
+			table.insert(right, components.position())
+			table.insert(right, components.total_lines())
+		end
 		table.insert(right, components.padding(1))
 
 		-- Progress bar (only in wider windows)
@@ -341,6 +370,7 @@ function M.setup(opts)
 
 	-- Smart redraw with debouncing
 	vim.api.nvim_create_augroup("StatuslineEvents", { clear = true })
+
 	vim.api.nvim_create_autocmd({ "ModeChanged" }, {
 		group = "StatuslineEvents",
 		callback = function()
@@ -373,6 +403,9 @@ function M.setup(opts)
 			debounced_redraw(opts.refresh_rate)
 		end,
 	})
+
+	-- LSP attach/detach (triggers redraw via component.lua autocmd)
+	-- No additional autocmd needed here as it's handled in component.lua
 
 	-- Expose Status_line for external calls
 	M.Status_line = Status_line

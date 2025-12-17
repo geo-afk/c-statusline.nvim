@@ -21,6 +21,10 @@ local icon_sets = {
 		angle_right = "",
 		angle_left = "",
 		dot = "•",
+		folder = " ",
+		lsp = " ",
+		row = " ",
+		col = " ",
 	},
 	nerd_v2 = {
 		branch = " ",
@@ -36,6 +40,10 @@ local icon_sets = {
 		angle_right = "❯",
 		angle_left = "❮",
 		dot = "•",
+		folder = " ",
+		lsp = " ",
+		row = " ",
+		col = " ",
 	},
 	ascii = {
 		branch = "*",
@@ -51,6 +59,10 @@ local icon_sets = {
 		angle_right = ">",
 		angle_left = "<",
 		dot = "·",
+		folder = "D",
+		lsp = "L",
+		row = "R",
+		col = "C",
 	},
 }
 
@@ -68,7 +80,6 @@ function M.get_or_create_hl(fg, bg, opts)
 	bg = bg or "StatusLine"
 	fg = fg or "#ffffff"
 
-	-- Create cache key (fixed to handle booleans as strings)
 	local bold_str = opts.bold and "bold" or ""
 	local italic_str = opts.italic and "italic" or ""
 	local key = table.concat({ tostring(fg), tostring(bg), bold_str, italic_str }, "_")
@@ -227,17 +238,14 @@ function M.git_branch()
 end
 
 -- Git status with icons and caching
-
 function M.git_status()
 	if not vim.b.status_cache then
 		vim.b.status_cache = {}
 	end
 	local cache = vim.b.status_cache.git
-	-- get high-resolution time in ms
 	local now_ns = vim.loop.hrtime()
 	local now = now_ns / 1e6
 	local lines = vim.api.nvim_buf_line_count(0)
-	-- stale threshold in ms
 	local stale = (lines > 10000) and 30000 or 10000
 
 	if not cache or (now - (cache.timestamp or 0)) > stale then
@@ -330,6 +338,71 @@ function M.diagnostics()
 	return cache.str or ""
 end
 
+-- NEW: Folder name component
+function M.folder_name()
+	local full_path = vim.fn.expand("%:p:h")
+	if full_path == "" then
+		return ""
+	end
+
+	-- Extract the last folder in the path
+	local folder = full_path:match("([^/\\]+)[/\\]*$")
+	if not folder or folder == "" then
+		folder = "~"
+	end
+
+	local icon = M.get_icon("folder")
+	return hl_str("SLDim", icon .. " " .. folder) .. " "
+end
+
+-- NEW: LSP status component with client names
+local lsp_cache = {}
+function M.lsp_status()
+	local buf = vim.api.nvim_get_current_buf()
+	local now = vim.loop.now()
+
+	if not lsp_cache[buf] then
+		lsp_cache[buf] = {}
+	end
+
+	local cache = lsp_cache[buf]
+	local stale = 2000 -- 2s cache for LSP info
+
+	if not cache.str or (now - (cache.timestamp or 0)) > stale then
+		local clients = vim.lsp.get_clients({ bufnr = buf })
+
+		if #clients == 0 then
+			cache = { str = "", timestamp = now }
+		else
+			local client_names = {}
+			for _, client in ipairs(clients) do
+				table.insert(client_names, client.name)
+			end
+
+			local icon = M.get_icon("lsp")
+			local names_str = table.concat(client_names, ",")
+			local count_str = #clients > 1 and (" (" .. #clients .. ")") or ""
+
+			cache = {
+				str = hl_str("SLGitBranch", icon .. " " .. names_str) .. hl_str("SLDim", count_str) .. " ",
+				timestamp = now,
+			}
+		end
+
+		lsp_cache[buf] = cache
+
+		vim.api.nvim_create_autocmd("BufLeave", {
+			buffer = buf,
+			once = true,
+			callback = function()
+				lsp_cache[buf] = nil
+			end,
+		})
+	end
+
+	return cache.str or ""
+end
+
 -- File encoding
 function M.file_encoding()
 	local enc = vim.bo.fileencoding or vim.o.encoding
@@ -340,18 +413,28 @@ function M.file_encoding()
 end
 
 -- File format
-
 function M.file_format()
 	local format = vim.bo.fileformat
 	local icons = {
-		unix = " ", -- LF (Unix / Linux)
-		dos = " ", -- CRLF (Windows)
-		mac = " ", -- CR (Classic Mac)
+		unix = " ", -- LF (Unix / Linux)
+		dos = " ", -- CRLF (Windows)
+		mac = " ", -- CR (Classic Mac)
 	}
 	return hl_str("SLFormat", icons[format] or format) .. " "
 end
 
--- Position
+-- NEW: Enhanced position with ROW/COL labels
+function M.position_enhanced()
+	local row_icon = M.get_icon("row")
+	local col_icon = M.get_icon("col")
+
+	local row_label = hl_str("SLDim", row_icon .. " ROW")
+	local col_label = hl_str("SLDim", col_icon .. " COL")
+
+	return row_label .. " " .. hl_str("SLPosition", "%3l") .. "  " .. col_label .. " " .. hl_str("SLPosition", "%-2c")
+end
+
+-- Original position (kept for backward compatibility)
 function M.position()
 	return hl_str("SLPosition", "%3l:%-2c")
 end
@@ -456,6 +539,7 @@ end
 local function invalidate_caches()
 	vim.b.status_cache = nil
 	file_cache[vim.api.nvim_get_current_buf()] = nil
+	lsp_cache[vim.api.nvim_get_current_buf()] = nil
 end
 
 -- Cleanup for large buffers
@@ -464,6 +548,7 @@ local function cleanup_large_buffer_cache(bufnr)
 	if ok and lines > 50000 then
 		progress_cache[bufnr] = nil
 		file_cache[bufnr] = nil
+		lsp_cache[bufnr] = nil
 	end
 end
 
@@ -488,6 +573,20 @@ vim.api.nvim_create_autocmd("DiagnosticChanged", {
 		if vim.b.status_cache then
 			vim.b.status_cache.diagnostics = nil
 		end
+	end,
+	group = "StatuslineCache",
+})
+
+-- LSP attach/detach events
+vim.api.nvim_create_autocmd({ "LspAttach", "LspDetach" }, {
+	callback = function()
+		local buf = vim.api.nvim_get_current_buf()
+		if lsp_cache[buf] then
+			lsp_cache[buf] = nil
+		end
+		vim.schedule(function()
+			vim.cmd("redrawstatus")
+		end)
 	end,
 	group = "StatuslineCache",
 })
