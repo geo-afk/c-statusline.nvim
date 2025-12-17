@@ -5,27 +5,58 @@ local components = require("statusline.component")
 
 --- Default config
 local defaults = {
-	bg_hex = "#1f2335",
-	fg_main = "#c0caf5",
-	fg_dim = "#565f89",
+	-- Modern color scheme with rich backgrounds
+	colors = {
+		-- Mode colors (vibrant, high contrast)
+		mode_normal = "#7aa2f7",
+		mode_insert = "#9ece6a",
+		mode_visual = "#bb9af7",
+		mode_replace = "#f7768e",
+		mode_command = "#e0af68",
+		mode_terminal = "#73daca",
+		mode_select = "#ff9e64",
 
-	-- Configuration options
-	icon_set = "nerd_v3", -- "nerd_v3", "nerd_v2", "ascii"
-	separator_style = "vertical", -- "vertical", "angle_right", "dot"
+		-- Background colors
+		bg_main = "#1f2335", -- Main statusline background
+		bg_section = "#24283b", -- Section backgrounds
+		bg_accent = "#414868", -- Accent backgrounds
+
+		-- Foreground colors
+		fg_main = "#c0caf5", -- Primary text
+		fg_dim = "#565f89", -- Dimmed text
+		fg_bright = "#ffffff", -- Bright text
+		fg_dark = "#1a1b26", -- Dark text (for mode labels)
+
+		-- Component colors
+		git_branch = "#bb9af7",
+		git_added = "#9ece6a",
+		git_changed = "#e0af68",
+		git_removed = "#f7768e",
+		diagnostic_error = "#f7768e",
+		diagnostic_warn = "#e0af68",
+		diagnostic_info = "#0db9d7",
+		diagnostic_hint = "#1abc9c",
+		lsp_active = "#bb9af7",
+		folder = "#7aa2f7",
+	},
+
+	-- Style options
+	style = "bubble", -- "bubble", "powerline", "minimal"
+	separator_style = "round", -- "round", "angle", "vertical"
 
 	components = {
-		mode = { enabled = true, style = "bubble" },
+		mode = { enabled = true },
 		git = { enabled = true },
 		diagnostics = { enabled = true },
 		file_info = { enabled = true, show_size = true },
-		folder = { enabled = true }, -- NEW: folder display
-		lsp = { enabled = true }, -- NEW: LSP status
-		position = { enabled = true, style = "enhanced" }, -- NEW: enhanced position with labels
+		folder = { enabled = true },
+		lsp = { enabled = true },
+		position = { enabled = true, style = "enhanced" },
 		progress = { enabled = true, style = "bar" },
 	},
 
-	refresh_rate = 100, -- ms for debounce
-	cache_timeout = 10000, -- ms
+	refresh_rate = 100,
+	cache_timeout = 10000,
 }
 
 -- Debounced redraw
@@ -46,137 +77,118 @@ function M.setup(opts)
 	opts = vim.tbl_deep_extend("force", defaults, opts or {})
 	M.config = opts
 
-	-- Color palette with error handling
-	local ok, statusline_hl = pcall(vim.api.nvim_get_hl, 0, { name = "StatusLine" })
-	local bg_hex
-	if ok and statusline_hl and statusline_hl.bg and statusline_hl.bg ~= 0 then
-		bg_hex = string.format("#%06x", statusline_hl.bg)
-	else
-		bg_hex = opts.bg_hex or "#1f2335"
-	end
-	local fg_main = opts.fg_main or "#c0caf5"
-	local fg_dim = opts.fg_dim or "#565f89"
+	local colors = opts.colors
 
-	-- Store colors for components
-	M.colors = {
-		bg_hex = bg_hex,
-		fg_main = fg_main,
-		fg_dim = fg_dim,
-	}
-
-	-- Lualine-style highlight groups
+	-- Enhanced highlight groups with backgrounds
 	local highlights = {
-		SLBgNoneHl = { fg = fg_main, bg = "none" },
-		SLNotModifiable = { fg = "#e0af68", bg = bg_hex, italic = true },
-		SLNormal = { fg = fg_main, bg = bg_hex },
-		SLModified = { fg = "#f7768e", bg = bg_hex, bold = true },
-		SLMatches = { fg = "#1a1b26", bg = "#7dcfff", bold = true },
-		SLDim = { fg = fg_dim, bg = bg_hex },
-		SLFileInfo = { fg = "#c0caf5", bg = bg_hex, bold = true },
-		SLPosition = { fg = "#c0caf5", bg = bg_hex, bold = true },
-		SLFiletype = { fg = "#bb9af7", bg = bg_hex },
-		SLSeparator = { fg = "#3b4261", bg = bg_hex },
-		SLGitBranch = { fg = "#bb9af7", bg = bg_hex },
-		SLGitAdded = { fg = "#9ece6a", bg = bg_hex },
-		SLGitChanged = { fg = "#e0af68", bg = bg_hex },
-		SLGitRemoved = { fg = "#f7768e", bg = bg_hex },
-		SLEncoding = { fg = "#7aa2f7", bg = bg_hex },
-		SLFormat = { fg = "#7aa2f7", bg = bg_hex },
+		-- Base statusline
+		SLBackground = { fg = colors.fg_main, bg = colors.bg_main },
+		SLSection = { fg = colors.fg_main, bg = colors.bg_section },
+		SLAccent = { fg = colors.fg_bright, bg = colors.bg_accent, bold = true },
+
+		-- Text variants
+		SLDim = { fg = colors.fg_dim, bg = colors.bg_main },
+		SLBright = { fg = colors.fg_bright, bg = colors.bg_main, bold = true },
+		SLModified = { fg = colors.diagnostic_error, bg = colors.bg_main, bold = true },
+		SLNotModifiable = { fg = colors.diagnostic_warn, bg = colors.bg_main, italic = true },
+
+		-- File info
+		SLFileInfo = { fg = colors.fg_bright, bg = colors.bg_section, bold = true },
+		SLFiletype = { fg = colors.lsp_active, bg = colors.bg_section },
+		SLFolder = { fg = colors.folder, bg = colors.bg_section },
+
+		-- Position with background
+		SLPosition = { fg = colors.fg_bright, bg = colors.bg_accent, bold = true },
+		SLPositionLabel = { fg = colors.fg_dim, bg = colors.bg_accent },
+
+		-- Git with backgrounds
+		SLGitBranch = { fg = colors.fg_dark, bg = colors.git_branch, bold = true },
+		SLGitAdded = { fg = colors.git_added, bg = colors.bg_section },
+		SLGitChanged = { fg = colors.git_changed, bg = colors.bg_section },
+		SLGitRemoved = { fg = colors.git_removed, bg = colors.bg_section },
+
+		-- LSP
+		SLLspActive = { fg = colors.fg_dark, bg = colors.lsp_active, bold = true },
+		SLLspCount = { fg = colors.fg_dim, bg = colors.bg_section },
+
+		-- Diagnostics (keep existing diagnostic colors)
+		SLDiagError = { fg = colors.diagnostic_error, bg = colors.bg_section },
+		SLDiagWarn = { fg = colors.diagnostic_warn, bg = colors.bg_section },
+		SLDiagInfo = { fg = colors.diagnostic_info, bg = colors.bg_section },
+		SLDiagHint = { fg = colors.diagnostic_hint, bg = colors.bg_section },
+
+		-- Separators
+		SLSeparator = { fg = colors.bg_accent, bg = colors.bg_main },
+
+		-- Encoding/Format
+		SLEncoding = { fg = colors.fg_dim, bg = colors.bg_section },
+		SLFormat = { fg = colors.fg_dim, bg = colors.bg_section },
+
+		-- Search matches
+		SLMatches = { fg = colors.fg_dark, bg = "#7dcfff", bold = true },
+
+		-- Progress bar
+		SLProgressFilled = { fg = colors.mode_normal, bg = colors.bg_section, bold = true },
+		SLProgressEmpty = { fg = colors.bg_accent, bg = colors.bg_section },
 	}
 
 	for name, hl_opts in pairs(highlights) do
 		vim.api.nvim_set_hl(0, name, hl_opts)
 	end
 
-	-- Mode colors with adaptive light/dark support
-	local function get_mode_colors()
-		if vim.o.background == "light" then
-			return {
-				Normal = "#5a7fc7",
-				Insert = "#6da85a",
-				Visual = "#9768b5",
-				Replace = "#d15757",
-				Command = "#c99435",
-				Terminal = "#4a9c8e",
-				Select = "#d17557",
-			}
-		else
-			return {
-				Normal = "#7aa2f7",
-				Insert = "#9ece6a",
-				Visual = "#bb9af7",
-				Replace = "#f7768e",
-				Command = "#e0af68",
-				Terminal = "#73daca",
-				Select = "#ff9e64",
-			}
-		end
-	end
-
-	local mode_colors = get_mode_colors()
-
+	-- Mode highlight groups with backgrounds
 	local function create_mode_hl(name, color)
+		-- Mode section background
 		vim.api.nvim_set_hl(0, "Status" .. name, {
 			bg = color,
-			fg = "#1a1b26",
+			fg = colors.fg_dark,
 			bold = true,
 		})
+		-- Separator that transitions from mode color to main bg
 		vim.api.nvim_set_hl(0, "Status" .. name .. "Sep", {
 			fg = color,
-			bg = bg_hex,
+			bg = colors.bg_main,
 		})
 	end
 
-	for name, color in pairs(mode_colors) do
-		create_mode_hl(name, color)
-	end
+	create_mode_hl("Normal", colors.mode_normal)
+	create_mode_hl("Insert", colors.mode_insert)
+	create_mode_hl("Visual", colors.mode_visual)
+	create_mode_hl("Replace", colors.mode_replace)
+	create_mode_hl("Command", colors.mode_command)
+	create_mode_hl("Terminal", colors.mode_terminal)
+	create_mode_hl("Select", colors.mode_select)
 
-	-- Mode configuration with modern icons
+	-- Mode configuration
 	local mode_config = {
-		-- Normal modes
 		n = { name = "NORMAL", hl = "StatusNormal", icon = "", desc = "Normal" },
 		no = { name = "N·OP", hl = "StatusNormal", icon = "", desc = "Operator Pending" },
 		nov = { name = "N·OP·V", hl = "StatusNormal", icon = "", desc = "Operator Pending Char" },
 		noV = { name = "N·OP·L", hl = "StatusNormal", icon = "", desc = "Operator Pending Line" },
 		["no\22"] = { name = "N·OP·B", hl = "StatusNormal", icon = "", desc = "Operator Pending Block" },
-
-		-- Visual modes
 		v = { name = "VISUAL", hl = "StatusVisual", icon = "", desc = "Visual" },
 		V = { name = "V·LINE", hl = "StatusVisual", icon = "", desc = "Visual Line" },
 		["\22"] = { name = "V·BLOCK", hl = "StatusVisual", icon = "", desc = "Visual Block" },
-
-		-- Select modes
 		s = { name = "SELECT", hl = "StatusSelect", icon = "", desc = "Select" },
 		S = { name = "S·LINE", hl = "StatusSelect", icon = "", desc = "Select Line" },
 		["\19"] = { name = "S·BLOCK", hl = "StatusSelect", icon = "", desc = "Select Block" },
-
-		-- Insert modes
 		i = { name = "INSERT", hl = "StatusInsert", icon = "", desc = "Insert" },
 		ic = { name = "I·COMP", hl = "StatusInsert", icon = "", desc = "Insert Completion" },
 		ix = { name = "I·COMP", hl = "StatusInsert", icon = "", desc = "Insert Completion" },
-
-		-- Replace modes
 		R = { name = "REPLACE", hl = "StatusReplace", icon = "", desc = "Replace" },
 		Rc = { name = "R·COMP", hl = "StatusReplace", icon = "", desc = "Replace Completion" },
 		Rv = { name = "V·REPLACE", hl = "StatusReplace", icon = "", desc = "Virtual Replace" },
 		Rx = { name = "R·COMP", hl = "StatusReplace", icon = "", desc = "Replace Completion" },
-
-		-- Command modes
 		c = { name = "COMMAND", hl = "StatusCommand", icon = "", desc = "Command" },
 		cv = { name = "EX", hl = "StatusCommand", icon = "", desc = "Ex" },
 		ce = { name = "EX", hl = "StatusCommand", icon = "", desc = "Ex" },
-
-		-- Terminal mode
 		t = { name = "TERMINAL", hl = "StatusTerminal", icon = "", desc = "Terminal" },
-
-		-- Misc
 		r = { name = "PROMPT", hl = "StatusCommand", icon = "?", desc = "Hit Enter Prompt" },
 		rm = { name = "MORE", hl = "StatusCommand", icon = "?", desc = "More" },
 		["r?"] = { name = "CONFIRM", hl = "StatusCommand", icon = "?", desc = "Confirm" },
 		["!"] = { name = "SHELL", hl = "StatusTerminal", icon = "", desc = "Shell" },
 	}
 
-	-- Get mode info with error handling
 	local function get_mode_info()
 		local ok, mode_data = pcall(vim.api.nvim_get_mode)
 		if not ok then
@@ -185,10 +197,22 @@ function M.setup(opts)
 		return mode_config[mode_data.mode] or mode_config.n
 	end
 
-	-- Lualine-style mode indicator with rounded edges (bubble style)
+	-- Separator functions based on style
+	local function get_separator_chars()
+		if opts.separator_style == "round" then
+			return { left = "", right = "", left_alt = "", right_alt = "" }
+		elseif opts.separator_style == "angle" then
+			return { left = "", right = "", left_alt = "", right_alt = "" }
+		else -- vertical
+			return { left = "│", right = "│", left_alt = "│", right_alt = "│" }
+		end
+	end
+
+	local sep_chars = get_separator_chars()
+
+	-- Modern bubble-style mode indicator
 	local function mode_indicator()
 		local info = get_mode_info()
-
 		return table.concat({
 			"%#" .. info.hl .. "#",
 			" ",
@@ -197,17 +221,26 @@ function M.setup(opts)
 			info.name,
 			" ",
 			"%#" .. info.hl .. "Sep#",
-			"",
+			sep_chars.right,
 			"%*",
 		})
 	end
 
-	-- Right-side separator
-	local function section_sep()
-		return components.separator(opts.separator_style) .. " "
+	-- Section wrapper with background
+	local function section(content, hl_group)
+		if content == "" then
+			return ""
+		end
+		hl_group = hl_group or "SLSection"
+		return "%#" .. hl_group .. "#" .. " " .. content .. " " .. "%*"
 	end
 
-	-- Main statusline builder with responsive design
+	-- Separator with transition
+	local function section_sep()
+		return "%#SLSeparator#" .. sep_chars.left_alt .. "%*"
+	end
+
+	-- Main statusline builder
 	local function Status_line()
 		local width = vim.api.nvim_win_get_width(0)
 		local ft = vim.bo.filetype
@@ -228,13 +261,7 @@ function M.setup(opts)
 		if vim.tbl_contains(special, ft) then
 			local home = vim.loop.os_homedir() or ""
 			local dir = vim.fn.getcwd():gsub("^" .. home, "~")
-			return components.get_or_create_hl("#7dcfff", bg_hex, { bold = true })
-				.. " ✦ "
-				.. ft:sub(1, 1):upper()
-				.. ft:sub(2)
-				.. " ▸ "
-				.. dir
-				.. "%*"
+			return section(" ✦ " .. ft:sub(1, 1):upper() .. ft:sub(2) .. " ▸ " .. dir, "SLAccent")
 		end
 
 		-- Minimal mode for very narrow windows
@@ -242,45 +269,46 @@ function M.setup(opts)
 			return table.concat({
 				mode_indicator(),
 				"%=",
-				opts.components.position.style == "enhanced" and components.position_enhanced()
-					or components.position(),
-				components.padding(1),
+				section(components.position_enhanced(), "SLPosition"),
 			})
 		end
 
 		-- Left side
-		local left = { mode_indicator(), components.padding(2) }
+		local left = { mode_indicator(), " " }
 
-		-- Git information
+		-- Git branch with bubble background
 		if opts.components.git.enabled then
 			local git_branch = components.git_branch()
+			if git_branch ~= "" then
+				table.insert(left, section(git_branch, "SLGitBranch"))
+			end
+
+			-- Git stats
 			local git_status = components.git_status()
-			if git_branch ~= "" or git_status ~= "" then
-				if git_branch ~= "" then
-					table.insert(left, git_branch)
-				end
-				if git_status ~= "" then
-					table.insert(left, components.padding(1))
-					table.insert(left, git_status)
-				end
-				table.insert(left, section_sep())
+			if git_status ~= "" then
+				table.insert(left, " ")
+				table.insert(left, section(git_status, "SLSection"))
 			end
 		end
 
-		-- Folder name (NEW)
+		-- Folder name
 		if opts.components.folder.enabled and width >= 100 then
 			local folder = components.folder_name()
 			if folder ~= "" then
-				table.insert(left, folder)
 				table.insert(left, section_sep())
+				table.insert(left, section(folder, "SLFolder"))
 			end
 		end
 
 		-- File info
 		if opts.components.file_info.enabled then
+			table.insert(left, section_sep())
 			table.insert(
 				left,
-				components.fileinfo({ add_icon = true, show_size = opts.components.file_info.show_size })
+				section(
+					components.fileinfo({ add_icon = true, show_size = opts.components.file_info.show_size }),
+					"SLFileInfo"
+				)
 			)
 		end
 
@@ -288,27 +316,18 @@ function M.setup(opts)
 		if opts.components.diagnostics.enabled and width >= 100 then
 			local diagnostics = components.diagnostics()
 			if diagnostics ~= "" then
-				table.insert(left, section_sep())
-				table.insert(left, diagnostics)
+				table.insert(left, " ")
+				table.insert(left, section(diagnostics, "SLSection"))
 			end
 		end
 
-		-- Middle (empty)
+		-- Middle spacer
 		local middle = { "%=" }
 
 		-- Right side
 		local right = {}
 
-		-- LSP status (NEW)
-		if opts.components.lsp.enabled and width >= 120 then
-			local lsp_status = components.lsp_status()
-			if lsp_status ~= "" then
-				table.insert(right, lsp_status)
-				table.insert(right, section_sep())
-			end
-		end
-
-		-- Show any active indicators (only in wider windows)
+		-- Active indicators
 		if width >= 100 then
 			for _, fn in ipairs({
 				components.maximized_status,
@@ -322,44 +341,46 @@ function M.setup(opts)
 			end
 		end
 
-		-- File info (encoding/format) - skip in narrow windows
+		-- LSP status with bubble
+		if opts.components.lsp.enabled and width >= 120 then
+			local lsp_status = components.lsp_status()
+			if lsp_status ~= "" then
+				table.insert(right, section(lsp_status, "SLLspActive"))
+				table.insert(right, " ")
+			end
+		end
+
+		-- File encoding/format
 		if width >= 120 then
 			local enc = components.file_encoding()
 			local fmt = components.file_format()
 			if enc ~= "" or fmt ~= "" then
 				table.insert(right, section_sep())
-				if enc ~= "" then
-					table.insert(right, enc)
-				end
-				if fmt ~= "" then
-					table.insert(right, fmt)
-				end
+				table.insert(right, section((enc .. fmt), "SLSection"))
 			end
 		end
 
 		-- Filetype
-		local filetype = components.filetype()
-		if filetype ~= "" and width >= 100 then
-			table.insert(right, section_sep())
-			table.insert(right, filetype)
-			table.insert(right, components.padding(1))
+		if width >= 100 then
+			local filetype = components.filetype()
+			if filetype ~= "" then
+				table.insert(right, section_sep())
+				table.insert(right, section(filetype, "SLFiletype"))
+			end
 		end
 
-		-- Position info (always show)
+		-- Position with background bubble
 		table.insert(right, section_sep())
 		if opts.components.position.style == "enhanced" then
-			table.insert(right, components.position_enhanced())
+			table.insert(right, section(components.position_enhanced(), "SLPosition"))
 		else
-			table.insert(right, components.position())
-			table.insert(right, components.total_lines())
+			table.insert(right, section(components.position() .. components.total_lines(), "SLPosition"))
 		end
-		table.insert(right, components.padding(1))
 
-		-- Progress bar (only in wider windows)
+		-- Progress bar
 		if opts.components.progress.enabled and width >= 100 then
-			table.insert(right, section_sep())
-			table.insert(right, components.progress_bar())
-			table.insert(right, components.padding(1))
+			table.insert(right, " ")
+			table.insert(right, section(components.progress_bar(), "SLSection"))
 		end
 
 		return table.concat(left) .. table.concat(middle) .. table.concat(right)
@@ -404,10 +425,6 @@ function M.setup(opts)
 		end,
 	})
 
-	-- LSP attach/detach (triggers redraw via component.lua autocmd)
-	-- No additional autocmd needed here as it's handled in component.lua
-
-	-- Expose Status_line for external calls
 	M.Status_line = Status_line
 end
 

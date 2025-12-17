@@ -8,18 +8,18 @@ M._hls = {}
 -- Icon sets with fallbacks
 local icon_sets = {
 	nerd_v3 = {
-		branch = " ",
-		added = " ",
-		changed = "󰦒 ",
-		removed = " ",
-		error = " ",
-		warn = " ",
-		info = " ",
-		hint = "󰌵 ",
-		lock = "󰍁 ",
+		branch = " ",
+		added = " ",
+		changed = " ",
+		removed = " ",
+		error = " ",
+		warn = " ",
+		info = " ",
+		hint = " ",
+		lock = " ",
 		separator = "│",
-		angle_right = "",
-		angle_left = "",
+		angle_right = "",
+		angle_left = "",
 		dot = "•",
 		folder = " ",
 		lsp = " ",
@@ -27,18 +27,18 @@ local icon_sets = {
 		col = " ",
 	},
 	nerd_v2 = {
-		branch = " ",
-		added = " ",
-		changed = "󰦒 ",
-		removed = " ",
-		error = " ",
-		warn = " ",
-		info = " ",
-		hint = "󰌵 ",
-		lock = "󰍁 ",
+		branch = " ",
+		added = " ",
+		changed = " ",
+		removed = " ",
+		error = " ",
+		warn = " ",
+		info = " ",
+		hint = " ",
+		lock = " ",
 		separator = "│",
-		angle_right = "❯",
-		angle_left = "❮",
+		angle_right = "",
+		angle_left = "",
 		dot = "•",
 		folder = " ",
 		lsp = " ",
@@ -234,7 +234,7 @@ function M.git_branch()
 	end
 
 	local icon = M.get_icon("branch")
-	return hl_str("SLGitBranch", icon .. " " .. branch) .. " "
+	return icon .. " " .. branch
 end
 
 -- Git status with icons and caching
@@ -259,18 +259,18 @@ function M.git_status()
 			local parts = {}
 
 			if gitsigns.added and gitsigns.added > 0 then
-				table.insert(parts, hl_str("SLGitAdded", M.get_icon("added") .. " " .. gitsigns.added))
+				table.insert(parts, "%#SLGitAdded#" .. M.get_icon("added") .. " " .. gitsigns.added .. "%*")
 			end
 
 			if gitsigns.changed and gitsigns.changed > 0 then
-				table.insert(parts, hl_str("SLGitChanged", M.get_icon("changed") .. " " .. gitsigns.changed))
+				table.insert(parts, "%#SLGitChanged#" .. M.get_icon("changed") .. " " .. gitsigns.changed .. "%*")
 			end
 
 			if gitsigns.removed and gitsigns.removed > 0 then
-				table.insert(parts, hl_str("SLGitRemoved", M.get_icon("removed") .. " " .. gitsigns.removed))
+				table.insert(parts, "%#SLGitRemoved#" .. M.get_icon("removed") .. " " .. gitsigns.removed .. "%*")
 			end
 
-			local str = #parts == 0 and "" or (table.concat(parts, " ") .. " ")
+			local str = #parts == 0 and "" or table.concat(parts, " ")
 			cache = { str = str, timestamp = now }
 		end
 
@@ -313,22 +313,22 @@ function M.diagnostics()
 			local parts = {}
 
 			if res.errors > 0 then
-				table.insert(parts, hl_str("DiagnosticError", M.get_icon("error") .. " " .. res.errors))
+				table.insert(parts, "%#SLDiagError#" .. M.get_icon("error") .. " " .. res.errors .. "%*")
 			end
 
 			if res.warnings > 0 then
-				table.insert(parts, hl_str("DiagnosticWarn", M.get_icon("warn") .. " " .. res.warnings))
+				table.insert(parts, "%#SLDiagWarn#" .. M.get_icon("warn") .. " " .. res.warnings .. "%*")
 			end
 
 			if res.info > 0 then
-				table.insert(parts, hl_str("DiagnosticInfo", M.get_icon("info") .. " " .. res.info))
+				table.insert(parts, "%#SLDiagInfo#" .. M.get_icon("info") .. " " .. res.info .. "%*")
 			end
 
 			if res.hints > 0 then
-				table.insert(parts, hl_str("DiagnosticHint", M.get_icon("hint") .. " " .. res.hints))
+				table.insert(parts, "%#SLDiagHint#" .. M.get_icon("hint") .. " " .. res.hints .. "%*")
 			end
 
-			local str = vim.bo.modifiable and total > 0 and (table.concat(parts, " ") .. " ") or ""
+			local str = vim.bo.modifiable and total > 0 and table.concat(parts, " ") or ""
 			cache = { str = str, timestamp = now }
 		end
 
@@ -352,7 +352,7 @@ function M.folder_name()
 	end
 
 	local icon = M.get_icon("folder")
-	return hl_str("SLDim", icon .. " " .. folder) .. " "
+	return icon .. " " .. folder
 end
 
 -- FIXED: LSP status component with event-driven caching
@@ -360,8 +360,13 @@ end
 -- only on LspAttach/LspDetach events, NOT on every statusline render
 function M.lsp_status()
 	-- Read from cached buffer variable (set by autocmd)
-	local lsp_str = vim.b.statusline_lsp_clients or ""
-	return lsp_str
+	local lsp_data = vim.b.statusline_lsp_clients_data or {}
+	if not lsp_data.str or lsp_data.str == "" then
+		return ""
+	end
+
+	local icon = M.get_icon("lsp")
+	return icon .. " " .. lsp_data.names .. (lsp_data.count_str or "")
 end
 
 -- File encoding
@@ -370,7 +375,7 @@ function M.file_encoding()
 	if enc:upper() == "UTF-8" then
 		return ""
 	end
-	return hl_str("SLEncoding", enc:upper()) .. " "
+	return enc:upper()
 end
 
 -- File format
@@ -381,7 +386,7 @@ function M.file_format()
 		dos = " ", -- CRLF (Windows)
 		mac = " ", -- CR (Classic Mac)
 	}
-	return hl_str("SLFormat", icons[format] or format) .. " "
+	return icons[format] or format
 end
 
 -- Enhanced position with ROW/COL labels
@@ -389,10 +394,18 @@ function M.position_enhanced()
 	local row_icon = M.get_icon("row")
 	local col_icon = M.get_icon("col")
 
-	local row_label = hl_str("SLDim", row_icon .. " ROW")
-	local col_label = hl_str("SLDim", col_icon .. " COL")
-
-	return row_label .. " " .. hl_str("SLPosition", "%3l") .. "  " .. col_label .. " " .. hl_str("SLPosition", "%-2c")
+	return table.concat({
+		"%#SLPositionLabel#",
+		row_icon,
+		" ROW ",
+		"%#SLPosition#%3l",
+		"%#SLPositionLabel#",
+		"  ",
+		col_icon,
+		" COL ",
+		"%#SLPosition#%-2c",
+		"%*",
+	})
 end
 
 -- Original position (kept for backward compatibility)
@@ -428,17 +441,17 @@ function M.progress_bar()
 		local width = 10
 		local filled = math.floor((cur_line / lines) * width)
 
-		local hl_filled = M.get_or_create_hl("#7aa2f7", "StatusLine", { bold = true })
-		local hl_empty = M.get_or_create_hl("#3b4261", "StatusLine")
-		local bar = hl_filled
+		local bar = "%#SLProgressFilled#"
 			.. string.rep("█", filled)
-			.. "%*"
-			.. hl_empty
+			.. "%#SLProgressEmpty#"
 			.. string.rep("░", width - filled)
+			.. "%* "
+			.. "%#SLProgressFilled#"
+			.. percentage
+			.. "%%"
 			.. "%*"
 
-		local pct_hl = M.get_or_create_hl("#7aa2f7", "StatusLine", { bold = true })
-		cache.str = bar .. " " .. pct_hl .. percentage .. "%% %*"
+		cache.str = bar
 		cache.percentage = percentage
 		cache.lines = lines
 		cache.cur = cur_line
@@ -460,9 +473,9 @@ end
 function M.filetype()
 	local ft = vim.bo.filetype
 	if ft == "" then
-		ft = "none"
+		return ""
 	end
-	return hl_str("SLFiletype", ft:upper())
+	return ft:upper()
 end
 
 -- Macro recording
@@ -525,20 +538,21 @@ local function update_lsp_cache(bufnr)
 		local clients = vim.lsp.get_clients({ bufnr = bufnr })
 
 		if #clients == 0 then
-			vim.b[bufnr].statusline_lsp_clients = ""
+			vim.b[bufnr].statusline_lsp_clients_data = { str = "", names = "", count_str = "" }
 		else
 			local client_names = {}
 			for _, client in ipairs(clients) do
 				table.insert(client_names, client.name)
 			end
 
-			local icon = M.get_icon("lsp")
 			local names_str = table.concat(client_names, ",")
 			local count_str = #clients > 1 and (" (" .. #clients .. ")") or ""
 
-			vim.b[bufnr].statusline_lsp_clients = hl_str("SLGitBranch", icon .. " " .. names_str)
-				.. hl_str("SLDim", count_str)
-				.. " "
+			vim.b[bufnr].statusline_lsp_clients_data = {
+				str = names_str .. count_str,
+				names = names_str,
+				count_str = count_str,
+			}
 		end
 	end)
 end
@@ -581,7 +595,7 @@ vim.api.nvim_create_autocmd({ "LspAttach", "LspDetach" }, {
 vim.api.nvim_create_autocmd("BufEnter", {
 	callback = function(args)
 		-- Only update if cache doesn't exist yet
-		if not vim.b[args.buf].statusline_lsp_clients then
+		if not vim.b[args.buf].statusline_lsp_clients_data then
 			update_lsp_cache(args.buf)
 		end
 	end,
