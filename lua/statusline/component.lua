@@ -1,3 +1,5 @@
+-- Modified component.lua with minor tweaks for compatibility with new UI
+
 ---@module "custom.statusline.components"
 local utils = require("statusline.utils")
 local hl_str = utils.hl_str
@@ -5,8 +7,7 @@ local hl_str = utils.hl_str
 local M = {}
 M._hls = {}
 
--- Icon sets with fallbacks
-
+-- Icon sets (unchanged, assuming Nerd Fonts for modern look)
 local icon_sets = {
 	nerd_v3 = {
 		branch = " ",
@@ -23,7 +24,6 @@ local icon_sets = {
 		angle_left = "",
 		dot = "•",
 
-		-- filled in
 		folder = " ",
 		lsp = " ",
 		row = " ",
@@ -45,7 +45,6 @@ local icon_sets = {
 		angle_left = "❮",
 		dot = "•",
 
-		-- filled in
 		folder = " ",
 		lsp = " ",
 		row = " ",
@@ -73,14 +72,14 @@ local icon_sets = {
 	},
 }
 
--- Get icon based on configured set
+-- Get icon (unchanged)
 function M.get_icon(name)
 	local statusline = package.loaded["statusline"]
 	local icon_set = (statusline and statusline.config and statusline.config.icon_set) or "nerd_v3"
 	return icon_sets[icon_set][name] or icon_sets.ascii[name] or "?"
 end
 
--- Optimized highlight creation with caching
+-- Optimized highlight creation (unchanged)
 local hl_cache = {}
 function M.get_or_create_hl(fg, bg, opts)
 	opts = opts or {}
@@ -140,12 +139,12 @@ function M.get_or_create_hl(fg, bg, opts)
 	return result
 end
 
--- Simple padding
+-- Padding (unchanged)
 function M.padding(nr)
 	return string.rep(" ", nr or 1)
 end
 
--- Configurable separator
+-- Separator (unchanged, but compatible with new styles)
 local separator_cache = {}
 function M.separator(style)
 	style = style or "vertical"
@@ -160,7 +159,7 @@ function M.separator(style)
 	return result
 end
 
--- Enhanced file icon with error handling
+-- File icon (unchanged)
 function M.file_icon()
 	local ok, devicons = pcall(require, "nvim-web-devicons")
 	local icon, igroup
@@ -185,7 +184,7 @@ function M.file_icon()
 	return hl_str(igroup, icon)
 end
 
--- File info with size cache
+-- File info (unchanged)
 local file_cache = {}
 function M.fileinfo(opts)
 	opts = opts or { add_icon = true, show_size = true }
@@ -231,6 +230,7 @@ function M.fileinfo(opts)
 		.. hl_str("SLDim", size_str)
 end
 
+-- Git branch (unchanged)
 function M.git_branch()
 	local ok, branch = pcall(function()
 		return vim.b.gitsigns_head
@@ -244,7 +244,7 @@ function M.git_branch()
 	return icon .. " " .. branch
 end
 
--- Git status with icons and caching
+-- Git status (unchanged)
 function M.git_status()
 	if not vim.b.status_cache then
 		vim.b.status_cache = {}
@@ -287,7 +287,7 @@ function M.git_status()
 	return cache.str or ""
 end
 
--- Diagnostics with detailed counts
+-- Diagnostics (unchanged)
 function M.diagnostics()
 	if not vim.b.status_cache then
 		vim.b.status_cache = {}
@@ -345,14 +345,13 @@ function M.diagnostics()
 	return cache.str or ""
 end
 
--- Folder name component
+-- Folder name (unchanged)
 function M.folder_name()
 	local full_path = vim.fn.expand("%:p:h")
 	if full_path == "" then
 		return ""
 	end
 
-	-- Extract the last folder in the path
 	local folder = full_path:match("([^/\\]+)[/\\]*$")
 	if not folder or folder == "" then
 		folder = "~"
@@ -362,11 +361,8 @@ function M.folder_name()
 	return icon .. " " .. folder
 end
 
--- FIXED: LSP status component with event-driven caching
--- This component reads from buffer-local cached variables that are updated
--- only on LspAttach/LspDetach events, NOT on every statusline render
+-- LSP status (unchanged)
 function M.lsp_status()
-	-- Read from cached buffer variable (set by autocmd)
 	local lsp_data = vim.b.statusline_lsp_clients_data or {}
 	if not lsp_data.str or lsp_data.str == "" then
 		return ""
@@ -376,7 +372,7 @@ function M.lsp_status()
 	return icon .. " " .. lsp_data.names .. (lsp_data.count_str or "")
 end
 
--- File encoding
+-- File encoding (unchanged)
 function M.file_encoding()
 	local enc = vim.bo.fileencoding or vim.o.encoding
 	if enc:upper() == "UTF-8" then
@@ -385,7 +381,7 @@ function M.file_encoding()
 	return enc:upper()
 end
 
--- File format
+-- File format (unchanged)
 function M.file_format()
 	local format = vim.bo.fileformat
 	local icons = {
@@ -396,7 +392,7 @@ function M.file_format()
 	return icons[format] or format
 end
 
--- Enhanced position with ROW/COL labels
+-- Position enhanced (unchanged)
 function M.position_enhanced()
 	local row_icon = M.get_icon("row")
 	local col_icon = M.get_icon("col")
@@ -415,17 +411,17 @@ function M.position_enhanced()
 	})
 end
 
--- Original position (kept for backward compatibility)
+-- Position (unchanged)
 function M.position()
 	return hl_str("SLPosition", "%3l:%-2c")
 end
 
--- Total lines
+-- Total lines (unchanged)
 function M.total_lines()
 	return hl_str("SLDim", "/%L")
 end
 
--- Progress bar with percentage and caching
+-- Progress bar (unchanged)
 local progress_cache = {}
 function M.progress_bar()
 	local buf = vim.api.nvim_get_current_buf()
@@ -476,7 +472,7 @@ function M.progress_bar()
 	return cache.str
 end
 
--- Filetype
+-- Filetype (unchanged)
 function M.filetype()
 	local ft = vim.bo.filetype
 	if ft == "" then
@@ -485,7 +481,7 @@ function M.filetype()
 	return ft:upper()
 end
 
--- Macro recording
+-- Macro recording (unchanged)
 function M.macro_recording()
 	local ok, reg = pcall(vim.fn.reg_recording)
 	if not ok or reg == "" then
@@ -494,7 +490,7 @@ function M.macro_recording()
 	return hl_str("SLModified", " ● REC @" .. reg .. " ")
 end
 
--- Maximized window
+-- Maximized status (unchanged)
 function M.maximized_status()
 	if not vim.b.is_zoomed then
 		return ""
@@ -502,7 +498,7 @@ function M.maximized_status()
 	return hl_str("SLModified", " ⛶ ")
 end
 
--- Search count
+-- Search count (unchanged)
 function M.search_count()
 	if vim.v.hlsearch == 0 then
 		return ""
@@ -516,13 +512,12 @@ function M.search_count()
 	return hl_str("SLMatches", string.format(" [%d/%d] ", result.current, result.total))
 end
 
--- Enhanced cache invalidation
+-- Cache management (unchanged)
 local function invalidate_caches()
 	vim.b.status_cache = nil
 	file_cache[vim.api.nvim_get_current_buf()] = nil
 end
 
--- Cleanup for large buffers
 local function cleanup_large_buffer_cache(bufnr)
 	local ok, lines = pcall(vim.api.nvim_buf_line_count, bufnr)
 	if ok and lines > 50000 then
@@ -531,12 +526,9 @@ local function cleanup_large_buffer_cache(bufnr)
 	end
 end
 
--- CRITICAL FIX: Update LSP client cache on events, not on every render
 local function update_lsp_cache(bufnr)
 	bufnr = bufnr or vim.api.nvim_get_current_buf()
 
-	-- Don't call vim.lsp.get_clients in the render path!
-	-- Instead, do it here in the autocmd callback
 	vim.schedule(function()
 		if not vim.api.nvim_buf_is_valid(bufnr) then
 			return
@@ -564,7 +556,6 @@ local function update_lsp_cache(bufnr)
 	end)
 end
 
--- Setup cache management
 vim.api.nvim_create_augroup("StatuslineCache", { clear = true })
 
 vim.api.nvim_create_autocmd({ "BufEnter", "FileType", "BufWritePost" }, {
@@ -579,7 +570,6 @@ vim.api.nvim_create_autocmd("BufDelete", {
 	group = "StatuslineCache",
 })
 
--- Specific cache invalidation on diagnostic changes
 vim.api.nvim_create_autocmd("DiagnosticChanged", {
 	callback = function()
 		if vim.b.status_cache then
@@ -589,8 +579,6 @@ vim.api.nvim_create_autocmd("DiagnosticChanged", {
 	group = "StatuslineCache",
 })
 
--- CRITICAL FIX: LSP attach/detach events now update buffer-local cache
--- This prevents calling vim.lsp.get_clients() on every statusline render
 vim.api.nvim_create_autocmd({ "LspAttach", "LspDetach" }, {
 	callback = function(args)
 		update_lsp_cache(args.buf)
@@ -598,10 +586,8 @@ vim.api.nvim_create_autocmd({ "LspAttach", "LspDetach" }, {
 	group = "StatuslineCache",
 })
 
--- Initial LSP cache population for buffers with existing LSP clients
 vim.api.nvim_create_autocmd("BufEnter", {
 	callback = function(args)
-		-- Only update if cache doesn't exist yet
 		if not vim.b[args.buf].statusline_lsp_clients_data then
 			update_lsp_cache(args.buf)
 		end
