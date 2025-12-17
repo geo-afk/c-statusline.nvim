@@ -161,32 +161,47 @@ function M.setup(opts)
 
 	-- Mode configuration
 	local mode_config = {
-		n = { name = "NORMAL", hl = "StatusNormal", icon = "", desc = "Normal" },
-		no = { name = "N·OP", hl = "StatusNormal", icon = "", desc = "Operator Pending" },
-		nov = { name = "N·OP·V", hl = "StatusNormal", icon = "", desc = "Operator Pending Char" },
-		noV = { name = "N·OP·L", hl = "StatusNormal", icon = "", desc = "Operator Pending Line" },
-		["no\22"] = { name = "N·OP·B", hl = "StatusNormal", icon = "", desc = "Operator Pending Block" },
-		v = { name = "VISUAL", hl = "StatusVisual", icon = "", desc = "Visual" },
-		V = { name = "V·LINE", hl = "StatusVisual", icon = "", desc = "Visual Line" },
-		["\22"] = { name = "V·BLOCK", hl = "StatusVisual", icon = "", desc = "Visual Block" },
-		s = { name = "SELECT", hl = "StatusSelect", icon = "", desc = "Select" },
-		S = { name = "S·LINE", hl = "StatusSelect", icon = "", desc = "Select Line" },
-		["\19"] = { name = "S·BLOCK", hl = "StatusSelect", icon = "", desc = "Select Block" },
-		i = { name = "INSERT", hl = "StatusInsert", icon = "", desc = "Insert" },
-		ic = { name = "I·COMP", hl = "StatusInsert", icon = "", desc = "Insert Completion" },
-		ix = { name = "I·COMP", hl = "StatusInsert", icon = "", desc = "Insert Completion" },
-		R = { name = "REPLACE", hl = "StatusReplace", icon = "", desc = "Replace" },
-		Rc = { name = "R·COMP", hl = "StatusReplace", icon = "", desc = "Replace Completion" },
-		Rv = { name = "V·REPLACE", hl = "StatusReplace", icon = "", desc = "Virtual Replace" },
-		Rx = { name = "R·COMP", hl = "StatusReplace", icon = "", desc = "Replace Completion" },
-		c = { name = "COMMAND", hl = "StatusCommand", icon = "", desc = "Command" },
-		cv = { name = "EX", hl = "StatusCommand", icon = "", desc = "Ex" },
-		ce = { name = "EX", hl = "StatusCommand", icon = "", desc = "Ex" },
-		t = { name = "TERMINAL", hl = "StatusTerminal", icon = "", desc = "Terminal" },
+		-- Normal modes
+		n = { name = "NORMAL", hl = "StatusNormal", icon = "󰋜", desc = "Normal" },
+		no = { name = "N·OP", hl = "StatusNormal", icon = "󰋜", desc = "Operator Pending" },
+		nov = { name = "N·OP·V", hl = "StatusNormal", icon = "󰋜", desc = "Operator Pending Char" },
+		noV = { name = "N·OP·L", hl = "StatusNormal", icon = "󰋜", desc = "Operator Pending Line" },
+		["no\22"] = { name = "N·OP·B", hl = "StatusNormal", icon = "󰋜", desc = "Operator Pending Block" },
+
+		-- Visual modes
+		v = { name = "VISUAL", hl = "StatusVisual", icon = "󰈈", desc = "Visual" },
+		V = { name = "V·LINE", hl = "StatusVisual", icon = "󰈈", desc = "Visual Line" },
+		["\22"] = { name = "V·BLOCK", hl = "StatusVisual", icon = "󰈈", desc = "Visual Block" },
+
+		-- Select modes
+		s = { name = "SELECT", hl = "StatusSelect", icon = "󰈈", desc = "Select" },
+		S = { name = "S·LINE", hl = "StatusSelect", icon = "󰈈", desc = "Select Line" },
+		["\19"] = { name = "S·BLOCK", hl = "StatusSelect", icon = "󰈈", desc = "Select Block" },
+
+		-- Insert modes
+		i = { name = "INSERT", hl = "StatusInsert", icon = "󰏫", desc = "Insert" },
+		ic = { name = "I·COMP", hl = "StatusInsert", icon = "󰏫", desc = "Insert Completion" },
+		ix = { name = "I·COMP", hl = "StatusInsert", icon = "󰏫", desc = "Insert Completion" },
+
+		-- Replace modes
+		R = { name = "REPLACE", hl = "StatusReplace", icon = "󰛔", desc = "Replace" },
+		Rc = { name = "R·COMP", hl = "StatusReplace", icon = "󰛔", desc = "Replace Completion" },
+		Rv = { name = "V·REPLACE", hl = "StatusReplace", icon = "󰛔", desc = "Virtual Replace" },
+		Rx = { name = "R·COMP", hl = "StatusReplace", icon = "󰛔", desc = "Replace Completion" },
+
+		-- Command modes
+		c = { name = "COMMAND", hl = "StatusCommand", icon = "󰘳", desc = "Command" },
+		cv = { name = "EX", hl = "StatusCommand", icon = "󰘳", desc = "Ex" },
+		ce = { name = "EX", hl = "StatusCommand", icon = "󰘳", desc = "Ex" },
+
+		-- Terminal mode
+		t = { name = "TERMINAL", hl = "StatusTerminal", icon = "󰆍", desc = "Terminal" },
+
+		-- Misc
 		r = { name = "PROMPT", hl = "StatusCommand", icon = "?", desc = "Hit Enter Prompt" },
 		rm = { name = "MORE", hl = "StatusCommand", icon = "?", desc = "More" },
 		["r?"] = { name = "CONFIRM", hl = "StatusCommand", icon = "?", desc = "Confirm" },
-		["!"] = { name = "SHELL", hl = "StatusTerminal", icon = "", desc = "Shell" },
+		["!"] = { name = "SHELL", hl = "StatusTerminal", icon = "", desc = "Shell" },
 	}
 
 	local function get_mode_info()
