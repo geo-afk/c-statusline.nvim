@@ -338,7 +338,7 @@ function M.diagnostics()
 	return cache.str or ""
 end
 
--- NEW: Folder name component
+-- Folder name component
 function M.folder_name()
 	local full_path = vim.fn.expand("%:p:h")
 	if full_path == "" then
@@ -355,52 +355,13 @@ function M.folder_name()
 	return hl_str("SLDim", icon .. " " .. folder) .. " "
 end
 
--- NEW: LSP status component with client names
-local lsp_cache = {}
+-- FIXED: LSP status component with event-driven caching
+-- This component reads from buffer-local cached variables that are updated
+-- only on LspAttach/LspDetach events, NOT on every statusline render
 function M.lsp_status()
-	local buf = vim.api.nvim_get_current_buf()
-	local now = vim.loop.now()
-
-	if not lsp_cache[buf] then
-		lsp_cache[buf] = {}
-	end
-
-	local cache = lsp_cache[buf]
-	local stale = 2000 -- 2s cache for LSP info
-
-	if not cache.str or (now - (cache.timestamp or 0)) > stale then
-		local clients = vim.lsp.get_clients({ bufnr = buf })
-
-		if #clients == 0 then
-			cache = { str = "", timestamp = now }
-		else
-			local client_names = {}
-			for _, client in ipairs(clients) do
-				table.insert(client_names, client.name)
-			end
-
-			local icon = M.get_icon("lsp")
-			local names_str = table.concat(client_names, ",")
-			local count_str = #clients > 1 and (" (" .. #clients .. ")") or ""
-
-			cache = {
-				str = hl_str("SLGitBranch", icon .. " " .. names_str) .. hl_str("SLDim", count_str) .. " ",
-				timestamp = now,
-			}
-		end
-
-		lsp_cache[buf] = cache
-
-		vim.api.nvim_create_autocmd("BufLeave", {
-			buffer = buf,
-			once = true,
-			callback = function()
-				lsp_cache[buf] = nil
-			end,
-		})
-	end
-
-	return cache.str or ""
+	-- Read from cached buffer variable (set by autocmd)
+	local lsp_str = vim.b.statusline_lsp_clients or ""
+	return lsp_str
 end
 
 -- File encoding
@@ -423,7 +384,7 @@ function M.file_format()
 	return hl_str("SLFormat", icons[format] or format) .. " "
 end
 
--- NEW: Enhanced position with ROW/COL labels
+-- Enhanced position with ROW/COL labels
 function M.position_enhanced()
 	local row_icon = M.get_icon("row")
 	local col_icon = M.get_icon("col")
@@ -539,7 +500,6 @@ end
 local function invalidate_caches()
 	vim.b.status_cache = nil
 	file_cache[vim.api.nvim_get_current_buf()] = nil
-	lsp_cache[vim.api.nvim_get_current_buf()] = nil
 end
 
 -- Cleanup for large buffers
@@ -548,8 +508,39 @@ local function cleanup_large_buffer_cache(bufnr)
 	if ok and lines > 50000 then
 		progress_cache[bufnr] = nil
 		file_cache[bufnr] = nil
-		lsp_cache[bufnr] = nil
 	end
+end
+
+-- CRITICAL FIX: Update LSP client cache on events, not on every render
+local function update_lsp_cache(bufnr)
+	bufnr = bufnr or vim.api.nvim_get_current_buf()
+
+	-- Don't call vim.lsp.get_clients in the render path!
+	-- Instead, do it here in the autocmd callback
+	vim.schedule(function()
+		if not vim.api.nvim_buf_is_valid(bufnr) then
+			return
+		end
+
+		local clients = vim.lsp.get_clients({ bufnr = bufnr })
+
+		if #clients == 0 then
+			vim.b[bufnr].statusline_lsp_clients = ""
+		else
+			local client_names = {}
+			for _, client in ipairs(clients) do
+				table.insert(client_names, client.name)
+			end
+
+			local icon = M.get_icon("lsp")
+			local names_str = table.concat(client_names, ",")
+			local count_str = #clients > 1 and (" (" .. #clients .. ")") or ""
+
+			vim.b[bufnr].statusline_lsp_clients = hl_str("SLGitBranch", icon .. " " .. names_str)
+				.. hl_str("SLDim", count_str)
+				.. " "
+		end
+	end)
 end
 
 -- Setup cache management
@@ -577,16 +568,22 @@ vim.api.nvim_create_autocmd("DiagnosticChanged", {
 	group = "StatuslineCache",
 })
 
--- LSP attach/detach events
+-- CRITICAL FIX: LSP attach/detach events now update buffer-local cache
+-- This prevents calling vim.lsp.get_clients() on every statusline render
 vim.api.nvim_create_autocmd({ "LspAttach", "LspDetach" }, {
-	callback = function()
-		local buf = vim.api.nvim_get_current_buf()
-		if lsp_cache[buf] then
-			lsp_cache[buf] = nil
+	callback = function(args)
+		update_lsp_cache(args.buf)
+	end,
+	group = "StatuslineCache",
+})
+
+-- Initial LSP cache population for buffers with existing LSP clients
+vim.api.nvim_create_autocmd("BufEnter", {
+	callback = function(args)
+		-- Only update if cache doesn't exist yet
+		if not vim.b[args.buf].statusline_lsp_clients then
+			update_lsp_cache(args.buf)
 		end
-		vim.schedule(function()
-			vim.cmd("redrawstatus")
-		end)
 	end,
 	group = "StatuslineCache",
 })
