@@ -1,28 +1,39 @@
----@module "custom.statusline"
+---@module "statusline"
 local M = {}
 
 local components = require("statusline.component")
 
---- Default config
+--- Default config with modern design
 local defaults = {
-	bg_hex = "#1f2335",
-	fg_main = "#c0caf5",
-	fg_dim = "#565f89",
-
-	-- New configuration options
-	icon_set = "nerd_v3", -- "nerd_v3", "nerd_v2", "ascii"
-	separator_style = "vertical", -- "vertical", "angle_right", "dot"
-
-	components = {
-		mode = { enabled = true, style = "bubble" },
-		git = { enabled = true },
-		diagnostics = { enabled = true },
-		file_info = { enabled = true, show_size = true },
-		progress = { enabled = true, style = "bar" },
+	-- Modern color palette (vibrant and bright)
+	colors = {
+		bg = "#1a1b26",
+		fg = "#c0caf5",
+		bg_light = "#24283b",
+		bg_highlight = "#292e42",
+		blue = "#7aa2f7",
+		cyan = "#7dcfff",
+		green = "#9ece6a",
+		purple = "#bb9af7",
+		red = "#f7768e",
+		orange = "#ff9e64",
+		yellow = "#e0af68",
+		gray = "#565f89",
+		dark_gray = "#3b4261",
 	},
 
-	refresh_rate = 100, -- ms for debounce
-	cache_timeout = 10000, -- ms
+	icon_set = "nerd_v3", -- "nerd_v3", "nerd_v2", "ascii"
+	separator_style = "rounded", -- "rounded", "arrow", "vertical"
+
+	components = {
+		mode = { enabled = true },
+		git = { enabled = true },
+		diagnostics = { enabled = true },
+		file_info = { enabled = true, show_size = false },
+		progress = { enabled = true },
+	},
+
+	refresh_rate = 100,
 }
 
 -- Debounced redraw
@@ -43,148 +54,146 @@ function M.setup(opts)
 	opts = vim.tbl_deep_extend("force", defaults, opts or {})
 	M.config = opts
 
-	-- Color palette with error handling
-	local ok, statusline_hl = pcall(vim.api.nvim_get_hl, 0, { name = "StatusLine" })
-	local bg_hex
-	if ok and statusline_hl and statusline_hl.bg and statusline_hl.bg ~= 0 then
-		bg_hex = string.format("#%06x", statusline_hl.bg)
-	else
-		bg_hex = opts.bg_hex or "#1f2335"
-	end
-	local fg_main = opts.fg_main or "#c0caf5"
-	local fg_dim = opts.fg_dim or "#565f89"
-
 	-- Store colors for components
-	M.colors = {
-		bg_hex = bg_hex,
-		fg_main = fg_main,
-		fg_dim = fg_dim,
-	}
+	M.colors = opts.colors
 
-	-- Lualine-style highlight groups
+	-- Modern highlight groups with better contrast
+	local c = opts.colors
+
+	-- Base statusline
+	vim.api.nvim_set_hl(0, "StatusLine", { bg = c.bg, fg = c.fg })
+	vim.api.nvim_set_hl(0, "StatusLineNC", { bg = c.bg, fg = c.gray })
+
+	-- Component highlights with backgrounds
 	local highlights = {
-		SLBgNoneHl = { fg = fg_main, bg = "none" },
-		SLNotModifiable = { fg = "#e0af68", bg = bg_hex, italic = true },
-		SLNormal = { fg = fg_main, bg = bg_hex },
-		SLModified = { fg = "#f7768e", bg = bg_hex, bold = true },
-		SLMatches = { fg = "#1a1b26", bg = "#7dcfff", bold = true },
-		SLDim = { fg = fg_dim, bg = bg_hex },
-		SLFileInfo = { fg = "#c0caf5", bg = bg_hex, bold = true },
-		SLPosition = { fg = "#c0caf5", bg = bg_hex, bold = true },
-		SLFiletype = { fg = "#bb9af7", bg = bg_hex },
-		SLSeparator = { fg = "#3b4261", bg = bg_hex },
-		SLGitBranch = { fg = "#bb9af7", bg = bg_hex },
-		SLGitAdded = { fg = "#9ece6a", bg = bg_hex },
-		SLGitChanged = { fg = "#e0af68", bg = bg_hex },
-		SLGitRemoved = { fg = "#f7768e", bg = bg_hex },
-		SLEncoding = { fg = "#7aa2f7", bg = bg_hex },
-		SLFormat = { fg = "#7aa2f7", bg = bg_hex },
+		-- File info section with background
+		SLFileSection = { fg = c.fg, bg = c.bg_light, bold = true },
+		SLFileIcon = { fg = c.cyan, bg = c.bg_light },
+		SLFileName = { fg = c.fg, bg = c.bg_light, bold = true },
+		SLModified = { fg = c.red, bg = c.bg_light, bold = true },
+		SLReadonly = { fg = c.orange, bg = c.bg_light },
+		SLFiletype = { fg = c.purple, bg = c.bg_highlight },
+
+		-- Git section with background
+		SLGitSection = { bg = c.bg_highlight },
+		SLGitBranch = { fg = c.purple, bg = c.bg_highlight, bold = true },
+		SLGitAdded = { fg = c.green, bg = c.bg_highlight },
+		SLGitChanged = { fg = c.yellow, bg = c.bg_highlight },
+		SLGitRemoved = { fg = c.red, bg = c.bg_highlight },
+
+		-- Diagnostics with icons
+		SLDiagError = { fg = c.red, bg = c.bg },
+		SLDiagWarn = { fg = c.yellow, bg = c.bg },
+		SLDiagInfo = { fg = c.blue, bg = c.bg },
+		SLDiagHint = { fg = c.cyan, bg = c.bg },
+
+		-- Position section
+		SLPosition = { fg = c.fg, bg = c.bg_highlight, bold = true },
+		SLProgress = { fg = c.cyan, bg = c.bg_highlight },
+
+		-- Separators
+		SLSep = { fg = c.dark_gray, bg = c.bg },
+		SLSepBgLight = { fg = c.bg_light, bg = c.bg },
+		SLSepBgHighlight = { fg = c.bg_highlight, bg = c.bg },
+		SLSepLightToHighlight = { fg = c.bg_light, bg = c.bg_highlight },
+
+		-- Special indicators
+		SLIndicator = { fg = c.bg, bg = c.cyan, bold = true },
+		SLSearch = { fg = c.bg, bg = c.yellow, bold = true },
 	}
 
 	for name, hl_opts in pairs(highlights) do
 		vim.api.nvim_set_hl(0, name, hl_opts)
 	end
 
-	-- Mode colors with adaptive light/dark support
-	local function get_mode_colors()
-		if vim.o.background == "light" then
-			return {
-				Normal = "#5a7fc7",
-				Insert = "#6da85a",
-				Visual = "#9768b5",
-				Replace = "#d15757",
-				Command = "#c99435",
-				Terminal = "#4a9c8e",
-				Select = "#d17557",
-			}
-		else
-			return {
-				Normal = "#7aa2f7",
-				Insert = "#9ece6a",
-				Visual = "#bb9af7",
-				Replace = "#f7768e",
-				Command = "#e0af68",
-				Terminal = "#73daca",
-				Select = "#ff9e64",
-			}
-		end
-	end
-
-	local mode_colors = get_mode_colors()
-
-	local function create_mode_hl(name, color)
-		vim.api.nvim_set_hl(0, "Status" .. name, {
-			bg = color,
-			fg = "#1a1b26",
-			bold = true,
-		})
-		vim.api.nvim_set_hl(0, "Status" .. name .. "Sep", {
-			fg = color,
-			bg = bg_hex,
-		})
-	end
-
-	for name, color in pairs(mode_colors) do
-		create_mode_hl(name, color)
-	end
-
-	-- Mode configuration with modern icons
-	local mode_config = {
-		-- Normal modes
-		n = { name = "NORMAL", hl = "StatusNormal", icon = "󰋜", desc = "Normal" },
-		no = { name = "N·OP", hl = "StatusNormal", icon = "󰋜", desc = "Operator Pending" },
-		nov = { name = "N·OP·V", hl = "StatusNormal", icon = "󰋜", desc = "Operator Pending Char" },
-		noV = { name = "N·OP·L", hl = "StatusNormal", icon = "󰋜", desc = "Operator Pending Line" },
-		["no\22"] = { name = "N·OP·B", hl = "StatusNormal", icon = "󰋜", desc = "Operator Pending Block" },
-
-		-- Visual modes
-		v = { name = "VISUAL", hl = "StatusVisual", icon = "󰈈", desc = "Visual" },
-		V = { name = "V·LINE", hl = "StatusVisual", icon = "󰈈", desc = "Visual Line" },
-		["\22"] = { name = "V·BLOCK", hl = "StatusVisual", icon = "󰈈", desc = "Visual Block" },
-
-		-- Select modes
-		s = { name = "SELECT", hl = "StatusSelect", icon = "󰈈", desc = "Select" },
-		S = { name = "S·LINE", hl = "StatusSelect", icon = "󰈈", desc = "Select Line" },
-		["\19"] = { name = "S·BLOCK", hl = "StatusSelect", icon = "󰈈", desc = "Select Block" },
-
-		-- Insert modes
-		i = { name = "INSERT", hl = "StatusInsert", icon = "󰏫", desc = "Insert" },
-		ic = { name = "I·COMP", hl = "StatusInsert", icon = "󰏫", desc = "Insert Completion" },
-		ix = { name = "I·COMP", hl = "StatusInsert", icon = "󰏫", desc = "Insert Completion" },
-
-		-- Replace modes
-		R = { name = "REPLACE", hl = "StatusReplace", icon = "󰛔", desc = "Replace" },
-		Rc = { name = "R·COMP", hl = "StatusReplace", icon = "󰛔", desc = "Replace Completion" },
-		Rv = { name = "V·REPLACE", hl = "StatusReplace", icon = "󰛔", desc = "Virtual Replace" },
-		Rx = { name = "R·COMP", hl = "StatusReplace", icon = "󰛔", desc = "Replace Completion" },
-
-		-- Command modes
-		c = { name = "COMMAND", hl = "StatusCommand", icon = "󰘳", desc = "Command" },
-		cv = { name = "EX", hl = "StatusCommand", icon = "󰘳", desc = "Ex" },
-		ce = { name = "EX", hl = "StatusCommand", icon = "󰘳", desc = "Ex" },
-
-		-- Terminal mode
-		t = { name = "TERMINAL", hl = "StatusTerminal", icon = "󰆍", desc = "Terminal" },
-
-		-- Misc
-		r = { name = "PROMPT", hl = "StatusCommand", icon = "?", desc = "Hit Enter Prompt" },
-		rm = { name = "MORE", hl = "StatusCommand", icon = "?", desc = "More" },
-		["r?"] = { name = "CONFIRM", hl = "StatusCommand", icon = "?", desc = "Confirm" },
-		["!"] = { name = "SHELL", hl = "StatusTerminal", icon = "", desc = "Shell" },
+	-- Mode colors - vibrant and distinct
+	local mode_colors = {
+		Normal = { bg = c.blue, fg = c.bg },
+		Insert = { bg = c.green, fg = c.bg },
+		Visual = { bg = c.purple, fg = c.bg },
+		Replace = { bg = c.red, fg = c.bg },
+		Command = { bg = c.yellow, fg = c.bg },
+		Terminal = { bg = c.cyan, fg = c.bg },
+		Select = { bg = c.orange, fg = c.bg },
 	}
 
-	-- Get mode info with error handling
+	-- Create mode highlights
+	for name, color in pairs(mode_colors) do
+		vim.api.nvim_set_hl(0, "SLMode" .. name, {
+			bg = color.bg,
+			fg = color.fg,
+			bold = true,
+		})
+		-- Separator from mode to bg
+		vim.api.nvim_set_hl(0, "SLMode" .. name .. "Sep", {
+			fg = color.bg,
+			bg = c.bg,
+		})
+		-- Separator from mode to bg_light
+		vim.api.nvim_set_hl(0, "SLMode" .. name .. "ToLight", {
+			fg = color.bg,
+			bg = c.bg_light,
+		})
+	end
+
+	-- Mode configuration with icons
+	local mode_config = {
+		-- Normal modes
+		n = { name = "NORMAL", hl = "SLModeNormal", icon = "" },
+		no = { name = "N·OP", hl = "SLModeNormal", icon = "" },
+		nov = { name = "N·OP", hl = "SLModeNormal", icon = "" },
+		noV = { name = "N·OP", hl = "SLModeNormal", icon = "" },
+		["no\22"] = { name = "N·OP", hl = "SLModeNormal", icon = "" },
+
+		-- Visual modes
+		v = { name = "VISUAL", hl = "SLModeVisual", icon = "󰈈" },
+		V = { name = "V·LINE", hl = "SLModeVisual", icon = "󰈈" },
+		["\22"] = { name = "V·BLOCK", hl = "SLModeVisual", icon = "󰩬" },
+
+		-- Select modes
+		s = { name = "SELECT", hl = "SLModeSelect", icon = "󰈈" },
+		S = { name = "S·LINE", hl = "SLModeSelect", icon = "󰈈" },
+		["\19"] = { name = "S·BLOCK", hl = "SLModeSelect", icon = "󰈈" },
+
+		-- Insert modes
+		i = { name = "INSERT", hl = "SLModeInsert", icon = "" },
+		ic = { name = "INSERT", hl = "SLModeInsert", icon = "" },
+		ix = { name = "INSERT", hl = "SLModeInsert", icon = "" },
+
+		-- Replace modes
+		R = { name = "REPLACE", hl = "SLModeReplace", icon = "󰛔" },
+		Rc = { name = "REPLACE", hl = "SLModeReplace", icon = "󰛔" },
+		Rv = { name = "V·REPLACE", hl = "SLModeReplace", icon = "󰛔" },
+		Rx = { name = "REPLACE", hl = "SLModeReplace", icon = "󰛔" },
+
+		-- Command modes
+		c = { name = "COMMAND", hl = "SLModeCommand", icon = "󰘳" },
+		cv = { name = "COMMAND", hl = "SLModeCommand", icon = "󰘳" },
+		ce = { name = "COMMAND", hl = "SLModeCommand", icon = "󰘳" },
+
+		-- Terminal mode
+		t = { name = "TERMINAL", hl = "SLModeTerminal", icon = "" },
+
+		-- Misc
+		r = { name = "PROMPT", hl = "SLModeCommand", icon = "" },
+		rm = { name = "MORE", hl = "SLModeCommand", icon = "" },
+		["r?"] = { name = "CONFIRM", hl = "SLModeCommand", icon = "" },
+		["!"] = { name = "SHELL", hl = "SLModeTerminal", icon = "" },
+	}
+
+	-- Get mode info
 	local function get_mode_info()
-		local _, mode_data = pcall(vim.api.nvim_get_mode)
+		local ok, mode_data = pcall(vim.api.nvim_get_mode)
 		if not ok then
 			return mode_config.n
 		end
 		return mode_config[mode_data.mode] or mode_config.n
 	end
 
-	-- Lualine-style mode indicator with rounded edges (bubble style)
+	-- Modern mode indicator with rounded bubble style
 	local function mode_indicator()
 		local info = get_mode_info()
+		local sep = "█"
 
 		return table.concat({
 			"%#" .. info.hl .. "#",
@@ -194,144 +203,128 @@ function M.setup(opts)
 			info.name,
 			" ",
 			"%#" .. info.hl .. "Sep#",
-			"",
+			sep,
 			"%*",
 		})
 	end
 
-	-- Right-side separator
-	local function section_sep()
-		return components.separator(opts.separator_style) .. " "
+	-- Separator helper
+	local function separator(from_hl, to_hl, char)
+		char = char or "█"
+		local hl = from_hl and to_hl and (from_hl .. "To" .. to_hl:gsub("^SL", "")) or "SLSep"
+		return "%#" .. hl .. "#" .. char .. "%*"
 	end
 
-	-- Main statusline builder with responsive design
+	-- Main statusline builder
 	local function Status_line()
 		local width = vim.api.nvim_win_get_width(0)
 		local ft = vim.bo.filetype
+
+		-- Special filetypes
 		local special = {
 			"neo-tree",
-			"minifiles",
+			"NvimTree",
 			"oil",
 			"TelescopePrompt",
-			"fzf",
-			"snacks_picker_input",
 			"alpha",
 			"dashboard",
-			"NvimTree",
-			"packer",
 			"lazy",
 		}
 
 		if vim.tbl_contains(special, ft) then
 			local home = vim.loop.os_homedir() or ""
 			local dir = vim.fn.getcwd():gsub("^" .. home, "~")
-			return components.get_or_create_hl("#7dcfff", bg_hex, { bold = true })
-				.. " ✦ "
-				.. ft:sub(1, 1):upper()
-				.. ft:sub(2)
-				.. " ▸ "
-				.. dir
-				.. "%*"
+			return "%#SLIndicator#  " .. ft:sub(1, 1):upper() .. ft:sub(2) .. " ▸ " .. dir .. "%*"
 		end
 
 		-- Minimal mode for very narrow windows
-		if width < 80 then
+		if width < 70 then
 			return table.concat({
 				mode_indicator(),
-				"%=",
+				" ",
 				components.position(),
-				components.padding(1),
 			})
 		end
 
 		-- Left side
-		local left = { mode_indicator(), components.padding(2) }
+		local left = {}
+		table.insert(left, mode_indicator())
 
-		if opts.components.git.enabled then
+		-- File info section with background
+		if opts.components.file_info.enabled then
+			table.insert(left, " ")
+			local fileinfo = components.fileinfo({
+				add_icon = true,
+				show_size = opts.components.file_info.show_size,
+			})
+			if fileinfo ~= "" then
+				table.insert(left, "%#SLSepBgLight#█%*")
+				table.insert(left, fileinfo)
+				table.insert(left, "%#SLSepBgLight#█%*")
+			end
+		end
+
+		-- Git section with background
+		if opts.components.git.enabled and width >= 90 then
 			local git_branch = components.git_branch()
 			local git_status = components.git_status()
 			if git_branch ~= "" or git_status ~= "" then
+				table.insert(left, " ")
+				table.insert(left, "%#SLSepBgHighlight#█%*")
 				if git_branch ~= "" then
 					table.insert(left, git_branch)
 				end
 				if git_status ~= "" then
-					table.insert(left, components.padding(1))
 					table.insert(left, git_status)
 				end
-				table.insert(left, section_sep())
+				table.insert(left, "%#SLSepBgHighlight#█%*")
 			end
 		end
 
-		if opts.components.file_info.enabled then
-			table.insert(
-				left,
-				components.fileinfo({ add_icon = true, show_size = opts.components.file_info.show_size })
-			)
-		end
-
+		-- Diagnostics
 		if opts.components.diagnostics.enabled and width >= 100 then
 			local diagnostics = components.diagnostics()
 			if diagnostics ~= "" then
-				table.insert(left, section_sep())
+				table.insert(left, "  ")
 				table.insert(left, diagnostics)
 			end
 		end
 
-		-- Middle (empty)
+		-- Middle (empty space)
 		local middle = { "%=" }
 
 		-- Right side
 		local right = {}
 
-		-- Show any active indicators (only in wider windows)
+		-- Special indicators
 		if width >= 100 then
 			for _, fn in ipairs({
-				components.maximized_status,
-				components.macro_recording,
 				components.search_count,
+				components.macro_recording,
 			}) do
 				local val = fn()
 				if val ~= "" then
 					table.insert(right, val)
+					table.insert(right, "  ")
 				end
 			end
 		end
 
-		-- File info (encoding/format) - skip in narrow windows
-		if width >= 120 then
-			local enc = components.file_encoding()
-			local fmt = components.file_format()
-			if enc ~= "" or fmt ~= "" then
-				table.insert(right, section_sep())
-				if enc ~= "" then
-					table.insert(right, enc)
-				end
-				if fmt ~= "" then
-					table.insert(right, fmt)
-				end
-			end
-		end
-
-		-- Filetype
+		-- Filetype with background
 		local filetype = components.filetype()
 		if filetype ~= "" and width >= 100 then
-			table.insert(right, section_sep())
+			table.insert(right, "%#SLSepBgHighlight#█%*")
 			table.insert(right, filetype)
-			table.insert(right, components.padding(1))
+			table.insert(right, "%#SLSepBgHighlight#█%*")
+			table.insert(right, " ")
 		end
 
-		-- Position info (always show)
-		table.insert(right, section_sep())
+		-- Position with background
+		table.insert(right, "%#SLSepBgHighlight#█%*")
 		table.insert(right, components.position())
-		table.insert(right, components.total_lines())
-		table.insert(right, components.padding(1))
-
-		-- Progress bar (only in wider windows)
-		if opts.components.progress.enabled and width >= 100 then
-			table.insert(right, section_sep())
-			table.insert(right, components.progress_bar())
-			table.insert(right, components.padding(1))
-		end
+		table.insert(right, " ")
+		table.insert(right, components.progress())
+		table.insert(right, "%#SLSepBgHighlight#█%*")
 
 		return table.concat(left) .. table.concat(middle) .. table.concat(right)
 	end
@@ -340,23 +333,24 @@ function M.setup(opts)
 	vim.o.statusline = "%!luaeval(\"require('statusline').Status_line()\")"
 
 	-- Smart redraw with debouncing
-	vim.api.nvim_create_augroup("StatuslineEvents", { clear = true })
-	vim.api.nvim_create_autocmd({ "ModeChanged" }, {
-		group = "StatuslineEvents",
+	local augroup = vim.api.nvim_create_augroup("StatuslineEvents", { clear = true })
+
+	vim.api.nvim_create_autocmd("ModeChanged", {
+		group = augroup,
 		callback = function()
-			debounced_redraw(16) -- Fast refresh for mode changes
+			debounced_redraw(16)
 		end,
 	})
 
 	vim.api.nvim_create_autocmd({ "DiagnosticChanged", "BufWritePost" }, {
-		group = "StatuslineEvents",
+		group = augroup,
 		callback = function()
 			debounced_redraw(opts.refresh_rate)
 		end,
 	})
 
-	vim.api.nvim_create_autocmd({ "FileType", "BufEnter" }, {
-		group = "StatuslineEvents",
+	vim.api.nvim_create_autocmd({ "FileType", "BufEnter", "WinEnter" }, {
+		group = augroup,
 		callback = function()
 			vim.cmd("redrawstatus")
 		end,
@@ -365,7 +359,7 @@ function M.setup(opts)
 	-- Git status updates
 	vim.api.nvim_create_autocmd("User", {
 		pattern = "GitSignsUpdate",
-		group = "StatuslineEvents",
+		group = augroup,
 		callback = function()
 			if vim.b.status_cache then
 				vim.b.status_cache.git = nil
