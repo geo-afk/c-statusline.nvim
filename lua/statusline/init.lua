@@ -1,73 +1,67 @@
--- Modern, clean statusline with refined aesthetics and generous spacing
--- Inspired by 2025 UI design trends: subtle depth, soft backgrounds, clear hierarchy
+-- Modified init.lua with modern Catppuccin Mocha theme, powerline separators, and improved spacing for clarity
 
 ---@module "custom.statusline"
 local M = {}
 
 local components = require("statusline.component")
 
---- Modern config with refined aesthetics
+--- Default config with modern updates
 local defaults = {
-	-- Refined color palette with subtle depth
+	-- Catppuccin Mocha color scheme for a soothing, modern look
 	colors = {
-		-- Mode colors (softer, more harmonious)
-		mode_normal = "#7aa2f7", -- Soft blue
-		mode_insert = "#9ece6a", -- Gentle green
-		mode_visual = "#bb9af7", -- Muted purple
-		mode_replace = "#f7768e", -- Soft red
-		mode_command = "#e0af68", -- Warm amber
-		mode_terminal = "#7dcfff", -- Calm cyan
-		mode_select = "#ff9e64", -- Soft orange
+		-- Mode colors (soft, pastel-inspired with good contrast)
+		mode_normal = "#89b4fa", -- Blue
+		mode_insert = "#a6e3a1", -- Green
+		mode_visual = "#cba6f7", -- Mauve
+		mode_replace = "#f38ba8", -- Red
+		mode_command = "#f9e2af", -- Yellow
+		mode_terminal = "#94e2d5", -- Teal
+		mode_select = "#fab387", -- Peach
 
-		-- Background layers (subtle gradation for depth)
-		bg_main = "#16161e", -- Deep base
-		bg_elevated = "#1a1b26", -- Slightly elevated
-		bg_panel = "#24283b", -- Panel surface
-		bg_highlight = "#292e42", -- Highlight surface
+		-- Background colors (subtle gradients for depth)
+		bg_main = "#181825", -- Mantle (dark base)
+		bg_section = "#1e1e2e", -- Base (slightly lighter)
+		bg_accent = "#313244", -- Surface0 (accent subtle)
 
-		-- Foreground colors (refined contrast)
-		fg_main = "#c0caf5", -- Primary text
-		fg_dim = "#565f89", -- Dimmed text
-		fg_bright = "#a9b1d6", -- Bright text
-		fg_inverse = "#1a1b26", -- For colored backgrounds
+		-- Foreground colors
+		fg_main = "#cdd6f4", -- Text
+		fg_dim = "#6c7086", -- Overlay0
+		fg_bright = "#bac2de", -- Subtext1
+		fg_dark = "#1e1e2e", -- Base (for mode labels)
 
-		-- Component colors (harmonious palette)
-		git_branch = "#bb9af7", -- Branch purple
-		git_added = "#9ece6a", -- Added green
-		git_changed = "#e0af68", -- Changed amber
-		git_removed = "#f7768e", -- Removed red
-		diagnostic_error = "#db4b4b", -- Error red
-		diagnostic_warn = "#e0af68", -- Warning amber
-		diagnostic_info = "#0db9d7", -- Info cyan
-		diagnostic_hint = "#1abc9c", -- Hint teal
-		lsp_active = "#7aa2f7", -- LSP blue
-		folder = "#7aa2f7", -- Folder blue
-
-		-- Accent colors
-		accent_blue = "#7aa2f7",
-		accent_purple = "#9d7cd8",
+		-- Component colors
+		git_branch = "#cba6f7", -- Mauve
+		git_added = "#a6e3a1", -- Green
+		git_changed = "#f9e2af", -- Yellow
+		git_removed = "#f38ba8", -- Red
+		diagnostic_error = "#f38ba8", -- Red
+		diagnostic_warn = "#f9e2af", -- Yellow
+		diagnostic_info = "#89dceb", -- Sky
+		diagnostic_hint = "#94e2d5", -- Teal
+		lsp_active = "#b4befe", -- Lavender
+		folder = "#89b4fa", -- Blue
 	},
 
-	-- Modern styling with clean separators
-	style = "modern", -- "modern", "minimal", "classic"
-	separator_style = "subtle", -- "subtle", "line", "powerline"
+	-- Style options: Switch to "powerline" for modern arrow separators
+	style = "powerline", -- "bubble", "powerline", "minimal"
+	separator_style = "powerline", -- "round", "angle", "vertical", "powerline", "slant"
 
 	components = {
 		mode = { enabled = true },
 		git = { enabled = true },
 		diagnostics = { enabled = true },
-		file_info = { enabled = true, show_size = false },
+		file_info = { enabled = true, show_size = true },
 		folder = { enabled = true },
 		lsp = { enabled = true },
-		position = { enabled = true, style = "simple" },
-		progress = { enabled = true, style = "percentage" },
+		position = { enabled = true, style = "enhanced" },
+		progress = { enabled = true, style = "bar" },
 	},
 
 	refresh_rate = 100,
 	cache_timeout = 10000,
 }
 
--- Debounced redraw
+-- Debounced redraw (unchanged)
 local redraw_timer = nil
 local function debounced_redraw(delay)
 	delay = delay or defaults.refresh_rate
@@ -87,78 +81,73 @@ function M.setup(opts)
 
 	local colors = opts.colors
 
-	-- Modern highlight groups with refined contrast
+	-- Updated highlight groups with Catppuccin colors and better contrast
 	local highlights = {
-		-- Base statusline with subtle elevation
+		-- Base statusline
 		SLBackground = { fg = colors.fg_main, bg = colors.bg_main },
-		SLElevated = { fg = colors.fg_main, bg = colors.bg_elevated },
-		SLPanel = { fg = colors.fg_main, bg = colors.bg_panel },
-		SLHighlight = { fg = colors.fg_bright, bg = colors.bg_highlight },
+		SLSection = { fg = colors.fg_main, bg = colors.bg_section },
+		SLAccent = { fg = colors.fg_bright, bg = colors.bg_accent, bold = true },
 
 		-- Text variants
 		SLDim = { fg = colors.fg_dim, bg = colors.bg_main },
-		SLBright = { fg = colors.fg_bright, bg = colors.bg_main },
+		SLBright = { fg = colors.fg_bright, bg = colors.bg_main, bold = true },
 		SLModified = { fg = colors.diagnostic_error, bg = colors.bg_main, bold = true },
-		SLNotModifiable = { fg = colors.diagnostic_warn, bg = colors.bg_main },
+		SLNotModifiable = { fg = colors.diagnostic_warn, bg = colors.bg_main, italic = true },
 
-		-- File info with subtle emphasis
-		SLFileInfo = { fg = colors.fg_bright, bg = colors.bg_elevated },
-		SLFiletype = { fg = colors.accent_purple, bg = colors.bg_elevated },
-		SLFolder = { fg = colors.folder, bg = colors.bg_elevated },
+		-- File info
+		SLFileInfo = { fg = colors.fg_bright, bg = colors.bg_section, bold = true },
+		SLFiletype = { fg = colors.lsp_active, bg = colors.bg_section },
+		SLFolder = { fg = colors.folder, bg = colors.bg_section },
 
-		-- Position info
-		SLPosition = { fg = colors.fg_bright, bg = colors.bg_panel },
-		SLPositionLabel = { fg = colors.fg_dim, bg = colors.bg_panel },
+		-- Position with background
+		SLPosition = { fg = colors.fg_bright, bg = colors.bg_accent, bold = true },
+		SLPositionLabel = { fg = colors.fg_dim, bg = colors.bg_accent },
 
-		-- Git with subtle backgrounds
-		SLGitBranch = { fg = colors.git_branch, bg = colors.bg_elevated },
-		SLGitAdded = { fg = colors.git_added, bg = colors.bg_elevated },
-		SLGitChanged = { fg = colors.git_changed, bg = colors.bg_elevated },
-		SLGitRemoved = { fg = colors.git_removed, bg = colors.bg_elevated },
+		-- Git with backgrounds
+		SLGitBranch = { fg = colors.fg_dark, bg = colors.git_branch, bold = true },
+		SLGitAdded = { fg = colors.git_added, bg = colors.bg_section },
+		SLGitChanged = { fg = colors.git_changed, bg = colors.bg_section },
+		SLGitRemoved = { fg = colors.git_removed, bg = colors.bg_section },
 
 		-- LSP
-		SLLspActive = { fg = colors.lsp_active, bg = colors.bg_elevated },
-		SLLspCount = { fg = colors.fg_dim, bg = colors.bg_elevated },
+		SLLspActive = { fg = colors.fg_dark, bg = colors.lsp_active, bold = true },
+		SLLspCount = { fg = colors.fg_dim, bg = colors.bg_section },
 
-		-- Diagnostics with clear colors
-		SLDiagError = { fg = colors.diagnostic_error, bg = colors.bg_elevated },
-		SLDiagWarn = { fg = colors.diagnostic_warn, bg = colors.bg_elevated },
-		SLDiagInfo = { fg = colors.diagnostic_info, bg = colors.bg_elevated },
-		SLDiagHint = { fg = colors.diagnostic_hint, bg = colors.bg_elevated },
+		-- Diagnostics
+		SLDiagError = { fg = colors.diagnostic_error, bg = colors.bg_section },
+		SLDiagWarn = { fg = colors.diagnostic_warn, bg = colors.bg_section },
+		SLDiagInfo = { fg = colors.diagnostic_info, bg = colors.bg_section },
+		SLDiagHint = { fg = colors.diagnostic_hint, bg = colors.bg_section },
 
-		-- Subtle separators
-		SLSeparator = { fg = colors.bg_panel, bg = colors.bg_main },
-		SLSeparatorAlt = { fg = colors.fg_dim, bg = colors.bg_main },
+		-- Separators (updated for powerline transitions)
+		SLSeparator = { fg = colors.bg_section, bg = colors.bg_main }, -- For smooth transitions
 
 		-- Encoding/Format
-		SLEncoding = { fg = colors.fg_dim, bg = colors.bg_elevated },
-		SLFormat = { fg = colors.fg_dim, bg = colors.bg_elevated },
+		SLEncoding = { fg = colors.fg_dim, bg = colors.bg_section },
+		SLFormat = { fg = colors.fg_dim, bg = colors.bg_section },
 
-		-- Special states
-		SLMatches = { fg = colors.fg_inverse, bg = colors.accent_blue, bold = true },
+		-- Search matches
+		SLMatches = { fg = colors.fg_dark, bg = colors.diagnostic_info, bold = true },
 
-		-- Progress
-		SLProgressFilled = { fg = colors.accent_blue, bg = colors.bg_elevated },
-		SLProgressEmpty = { fg = colors.bg_highlight, bg = colors.bg_elevated },
+		-- Progress bar
+		SLProgressFilled = { fg = colors.mode_normal, bg = colors.bg_section, bold = true },
+		SLProgressEmpty = { fg = colors.bg_accent, bg = colors.bg_section },
 	}
 
 	for name, hl_opts in pairs(highlights) do
 		vim.api.nvim_set_hl(0, name, hl_opts)
 	end
 
-	-- Mode highlights with harmonious colors
+	-- Mode highlight groups with backgrounds
 	local function create_mode_hl(name, color)
 		vim.api.nvim_set_hl(0, "Status" .. name, {
-			bg = colors.bg_elevated,
-			fg = color,
+			bg = color,
+			fg = colors.fg_dark,
 			bold = true,
 		})
-		vim.api.nvim_set_hl(0, "Status" .. name .. "Icon", {
-			bg = colors.bg_elevated,
-			fg = color,
-		})
+		-- Separator for mode with powerline transition
 		vim.api.nvim_set_hl(0, "Status" .. name .. "Sep", {
-			fg = colors.bg_elevated,
+			fg = color,
 			bg = colors.bg_main,
 		})
 	end
@@ -171,7 +160,7 @@ function M.setup(opts)
 	create_mode_hl("Terminal", colors.mode_terminal)
 	create_mode_hl("Select", colors.mode_select)
 
-	-- Modern mode configuration
+	-- Updated mode configuration with modern icons
 	local mode_config = {
 		n = { name = "NORMAL", hl = "StatusNormal", icon = "󰋜", desc = "Normal" },
 		no = { name = "N·OP", hl = "StatusNormal", icon = "󰋜", desc = "Operator Pending" },
@@ -205,7 +194,7 @@ function M.setup(opts)
 		r = { name = "PROMPT", hl = "StatusCommand", icon = "?", desc = "Hit Enter Prompt" },
 		rm = { name = "MORE", hl = "StatusCommand", icon = "?", desc = "More" },
 		["r?"] = { name = "CONFIRM", hl = "StatusCommand", icon = "?", desc = "Confirm" },
-		["!"] = { name = "SHELL", hl = "StatusTerminal", icon = "", desc = "Shell" },
+		["!"] = { name = "SHELL", hl = "StatusTerminal", icon = "", desc = "Shell" },
 	}
 
 	local function get_mode_info()
@@ -216,49 +205,61 @@ function M.setup(opts)
 		return mode_config[mode_data.mode] or mode_config.n
 	end
 
-	-- Modern separator characters
+	-- Updated separator chars for powerline style
 	local function get_separator_chars()
-		if opts.separator_style == "line" then
-			return { divider = "│", space = "  " }
-		elseif opts.separator_style == "powerline" then
-			return { divider = "", space = " " }
-		else -- subtle
-			return { divider = "·", space = "  " }
+		if opts.separator_style == "powerline" then
+			return { left = "", right = "", left_alt = "", right_alt = "" }
+		elseif opts.separator_style == "slant" then
+			return { left = "", right = "", left_alt = "", right_alt = "" }
+		elseif opts.separator_style == "round" then
+			return { left = "", right = "", left_alt = "", right_alt = "" }
+		elseif opts.separator_style == "angle" then
+			return { left = "◂", right = "▸", left_alt = "◃", right_alt = "▹" }
+		else -- vertical
+			return { left = "│", right = "│", left_alt = "│", right_alt = "│" }
 		end
 	end
 
 	local sep_chars = get_separator_chars()
 
-	-- Clean mode indicator with generous padding
+	-- Modern powerline-style mode indicator with better padding
 	local function mode_indicator()
 		local info = get_mode_info()
 		return table.concat({
-			"%#" .. info.hl .. "Icon#",
-			"  ",
-			info.icon,
-			"  ",
 			"%#" .. info.hl .. "#",
+			"  ", -- Increased padding for clarity
+			info.icon,
+			" ",
 			info.name,
 			"  ",
+			"%#" .. info.hl .. "Sep#",
+			sep_chars.right,
 			"%*",
 		})
 	end
 
-	-- Clean section wrapper with proper padding
+	-- Section wrapper with increased padding for better sizing and clarity
 	local function section(content, hl_group)
 		if content == "" then
 			return ""
 		end
-		hl_group = hl_group or "SLElevated"
-		return "%#" .. hl_group .. "#" .. "  " .. content .. "  " .. "%*"
+		hl_group = hl_group or "SLSection"
+		return "%#" .. hl_group .. "#" .. "  " .. content .. "  " .. "%*" -- Doubled padding
 	end
 
-	-- Subtle separator
-	local function subtle_sep()
-		return "%#SLSeparatorAlt#" .. sep_chars.space .. sep_chars.divider .. sep_chars.space .. "%*"
+	-- Updated separator with transition for powerline
+	local function section_sep(direction)
+		direction = direction or "right"
+		local sep_hl = "SLSeparator"
+		-- For powerline, adjust based on direction (simple approximation)
+		if opts.separator_style == "powerline" then
+			return "%#" .. sep_hl .. "#" .. (direction == "left" and sep_chars.left or sep_chars.right) .. "%*"
+		else
+			return "%#" .. sep_hl .. "#" .. sep_chars.left_alt .. "%*"
+		end
 	end
 
-	-- Main statusline builder with modern layout
+	-- Main statusline builder with adaptive layout
 	local function Status_line()
 		local width = vim.api.nvim_win_get_width(0)
 		local ft = vim.bo.filetype
@@ -279,7 +280,7 @@ function M.setup(opts)
 		if vim.tbl_contains(special, ft) then
 			local home = vim.loop.os_homedir() or ""
 			local dir = vim.fn.getcwd():gsub("^" .. home, "~")
-			return section("  " .. ft:sub(1, 1):upper() .. ft:sub(2) .. "  " .. dir, "SLHighlight")
+			return section(" ✦ " .. ft:sub(1, 1):upper() .. ft:sub(2) .. " ▸ " .. dir, "SLAccent")
 		end
 
 		-- Minimal mode for narrow windows
@@ -287,25 +288,41 @@ function M.setup(opts)
 			return table.concat({
 				mode_indicator(),
 				"%=",
-				section(components.position(), "SLPosition"),
+				section(components.position_enhanced(), "SLPosition"),
 			})
 		end
 
-		-- Left side
+		-- Left side with separators
 		local left = { mode_indicator() }
 
 		-- Git branch
 		if opts.components.git.enabled then
 			local git_branch = components.git_branch()
 			if git_branch ~= "" then
-				table.insert(left, subtle_sep())
+				table.insert(left, section_sep())
 				table.insert(left, section(git_branch, "SLGitBranch"))
+			end
+
+			-- Git stats
+			local git_status = components.git_status()
+			if git_status ~= "" then
+				table.insert(left, section_sep())
+				table.insert(left, section(git_status, "SLSection"))
 			end
 		end
 
-		-- File info (always visible)
+		-- Folder name (show only if width allows)
+		if opts.components.folder.enabled and width >= 100 then
+			local folder = components.folder_name()
+			if folder ~= "" then
+				table.insert(left, section_sep())
+				table.insert(left, section(folder, "SLFolder"))
+			end
+		end
+
+		-- File info
 		if opts.components.file_info.enabled then
-			table.insert(left, subtle_sep())
+			table.insert(left, section_sep())
 			table.insert(
 				left,
 				section(
@@ -315,31 +332,22 @@ function M.setup(opts)
 			)
 		end
 
-		-- Git stats
-		if opts.components.git.enabled and width >= 100 then
-			local git_status = components.git_status()
-			if git_status ~= "" then
-				table.insert(left, subtle_sep())
-				table.insert(left, section(git_status, "SLElevated"))
-			end
-		end
-
 		-- Diagnostics
 		if opts.components.diagnostics.enabled and width >= 100 then
 			local diagnostics = components.diagnostics()
 			if diagnostics ~= "" then
-				table.insert(left, subtle_sep())
-				table.insert(left, section(diagnostics, "SLElevated"))
+				table.insert(left, section_sep())
+				table.insert(left, section(diagnostics, "SLSection"))
 			end
 		end
 
 		-- Middle spacer
 		local middle = { "%=" }
 
-		-- Right side
+		-- Right side (aligned right with reverse separators)
 		local right = {}
 
-		-- Active indicators (recording, search, etc)
+		-- Active indicators
 		if width >= 100 then
 			for _, fn in ipairs({
 				components.maximized_status,
@@ -348,8 +356,8 @@ function M.setup(opts)
 			}) do
 				local val = fn()
 				if val ~= "" then
-					table.insert(right, section(val, "SLElevated"))
-					table.insert(right, subtle_sep())
+					table.insert(right, section_sep("left"))
+					table.insert(right, section(val, "SLSection"))
 				end
 			end
 		end
@@ -358,8 +366,18 @@ function M.setup(opts)
 		if opts.components.lsp.enabled and width >= 120 then
 			local lsp_status = components.lsp_status()
 			if lsp_status ~= "" then
+				table.insert(right, section_sep("left"))
 				table.insert(right, section(lsp_status, "SLLspActive"))
-				table.insert(right, subtle_sep())
+			end
+		end
+
+		-- File encoding/format
+		if width >= 120 then
+			local enc = components.file_encoding()
+			local fmt = components.file_format()
+			if enc ~= "" or fmt ~= "" then
+				table.insert(right, section_sep("left"))
+				table.insert(right, section((enc .. fmt), "SLSection"))
 			end
 		end
 
@@ -367,29 +385,23 @@ function M.setup(opts)
 		if width >= 100 then
 			local filetype = components.filetype()
 			if filetype ~= "" then
+				table.insert(right, section_sep("left"))
 				table.insert(right, section(filetype, "SLFiletype"))
-				table.insert(right, subtle_sep())
 			end
 		end
 
 		-- Position
-		if opts.components.position.style == "simple" then
-			table.insert(right, section(components.position(), "SLPosition"))
-		else
+		table.insert(right, section_sep("left"))
+		if opts.components.position.style == "enhanced" then
 			table.insert(right, section(components.position_enhanced(), "SLPosition"))
+		else
+			table.insert(right, section(components.position() .. components.total_lines(), "SLPosition"))
 		end
 
-		-- Progress
+		-- Progress bar
 		if opts.components.progress.enabled and width >= 100 then
-			table.insert(right, subtle_sep())
-			if opts.components.progress.style == "percentage" then
-				local lines = vim.api.nvim_buf_line_count(0)
-				local cur_line = vim.api.nvim_win_get_cursor(0)[1]
-				local percentage = math.floor((cur_line / lines) * 100)
-				table.insert(right, section(percentage .. "%%", "SLProgressFilled"))
-			else
-				table.insert(right, section(components.progress_bar(), "SLElevated"))
-			end
+			table.insert(right, section_sep("left"))
+			table.insert(right, section(components.progress_bar(), "SLSection"))
 		end
 
 		return table.concat(left) .. table.concat(middle) .. table.concat(right)
@@ -398,7 +410,7 @@ function M.setup(opts)
 	-- Set the statusline
 	vim.o.statusline = "%!luaeval(\"require('statusline').Status_line()\")"
 
-	-- Smart redraw with debouncing
+	-- Smart redraw with debouncing (unchanged)
 	vim.api.nvim_create_augroup("StatuslineEvents", { clear = true })
 
 	vim.api.nvim_create_autocmd({ "ModeChanged" }, {
