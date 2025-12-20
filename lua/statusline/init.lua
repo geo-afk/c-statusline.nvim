@@ -3,6 +3,12 @@ local M = {}
 
 local components = require("statusline.component")
 
+-- Pass config to components immediately after requiring
+components.setup({
+	icon_set = "nerd_v3", -- default or from opts later
+	separator_style = "vertical", -- default or from opts later
+})
+
 --- Default config
 local defaults = {
 	bg_hex = "#1f2335",
@@ -44,6 +50,12 @@ function M.setup(opts)
 	opts = vim.tbl_deep_extend("force", defaults, opts or {})
 	M.config = opts
 
+	-- Update components config with user opts
+	components.setup({
+		icon_set = opts.icon_set,
+		separator_style = opts.separator_style,
+	})
+
 	-- Color palette with error handling
 	local ok, statusline_hl = pcall(vim.api.nvim_get_hl, 0, { name = "StatusLine" })
 	local bg_hex
@@ -69,7 +81,7 @@ function M.setup(opts)
 		SLNormal = { fg = fg_main, bg = bg_hex },
 		SLModified = { fg = "#f7768e", bg = bg_hex, bold = true },
 		SLMatches = { fg = "#1a1b26", bg = "#7dcfff", bold = true },
-		SLDim = { fg = fg_dim, bg = bg_hex },
+		SLDIM = { fg = fg_dim, bg = bg_hex },
 		SLFileInfo = { fg = "#c0caf5", bg = bg_hex, bold = true },
 		SLPosition = { fg = "#c0caf5", bg = bg_hex, bold = true },
 		SLFiletype = { fg = "#bb9af7", bg = bg_hex },
@@ -285,6 +297,7 @@ function M.setup(opts)
 		-- Right side
 		local right = {}
 
+		-- LSP Progress
 		if opts.components.lsp_progress.enabled and width >= opts.components.lsp_progress.min_width then
 			local lsp_prog = components.lsp_progress()
 			if lsp_prog ~= "" then
@@ -351,6 +364,7 @@ function M.setup(opts)
 
 	-- Smart redraw with debouncing
 	vim.api.nvim_create_augroup("StatuslineEvents", { clear = true })
+
 	vim.api.nvim_create_autocmd({ "ModeChanged" }, {
 		group = "StatuslineEvents",
 		callback = function()
@@ -384,7 +398,7 @@ function M.setup(opts)
 		end,
 	})
 
-	-- LSP Progress
+	-- LSP Progress (fixed: use components.state instead of M.state)
 	vim.api.nvim_create_autocmd("LspProgress", {
 		group = "StatuslineEvents",
 		callback = function(args)
@@ -395,7 +409,7 @@ function M.setup(opts)
 			local value = args.data.params.value
 
 			if value.kind == "end" then
-				M.state.lsp_msg = ""
+				components.state.lsp_msg = ""
 			else
 				local progress = ""
 				if value.percentage then
@@ -412,11 +426,11 @@ function M.setup(opts)
 					message = " - " .. message
 				end
 
-				M.state.lsp_msg = progress .. title .. message
+				components.state.lsp_msg = progress .. title .. message
 			end
 
 			-- Redraw statusline
-			debounced_redraw(50) -- slightly slower than mode change to avoid flicker
+			debounced_redraw(50) -- slightly slower to avoid flicker
 		end,
 	})
 
