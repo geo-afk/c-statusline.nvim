@@ -256,106 +256,97 @@ M.git_status = function()
 	return stats
 end
 
--- function M.git_status()
--- 	if not vim.b.status_cache then
--- 		vim.b.status_cache = {}
--- 	end
--- 	local cache = vim.b.status_cache.git
--- 	-- get high-resolution time in ms
--- 	local now_ns = vim.loop.hrtime()
--- 	local now = now_ns / 1e6
--- 	local lines = vim.api.nvim_buf_line_count(0)
--- 	-- stale threshold in ms
--- 	local stale = (lines > 10000) and 30000 or 10000
---
--- 	if not cache or (now - (cache.timestamp or 0)) > stale then
--- 		local ok, gitsigns = pcall(function()
--- 			return vim.b.gitsigns_status_dict
--- 		end)
---
--- 		if not ok or not gitsigns then
--- 			cache = { str = "", timestamp = now }
--- 		else
--- 			local parts = {}
---
--- 			if gitsigns.added and gitsigns.added > 0 then
--- 				table.insert(parts, hl_str("SLGitAdded", M.get_icon("added") .. " " .. gitsigns.added))
--- 			end
---
--- 			if gitsigns.changed and gitsigns.changed > 0 then
--- 				table.insert(parts, hl_str("SLGitChanged", M.get_icon("changed") .. " " .. gitsigns.changed))
--- 			end
---
--- 			if gitsigns.removed and gitsigns.removed > 0 then
--- 				table.insert(parts, hl_str("SLGitRemoved", M.get_icon("removed") .. " " .. gitsigns.removed))
--- 			end
---
--- 			local str = #parts == 0 and "" or (table.concat(parts, " ") .. " ")
--- 			cache = { str = str, timestamp = now }
--- 		end
---
--- 		vim.b.status_cache.git = cache
--- 	end
---
--- 	return cache.str or ""
--- end
+-- Prebind icons once
+local DIAG_ICONS = {
+	error = M.get_icon("error"),
+	warn = M.get_icon("warn"),
+	info = M.get_icon("info"),
+	hint = M.get_icon("hint"),
+}
 
--- Diagnostics with detailed counts
-function M.diagnostics()
-	if not vim.b.status_cache then
-		vim.b.status_cache = {}
-	end
-
-	local cache = vim.b.status_cache.diagnostics
-	local now = vim.loop.now()
-	local lines = vim.api.nvim_buf_line_count(0)
-	local stale = (lines > 10000) and 30000 or 10000
-
-	if not cache or (now - (cache.timestamp or 0)) > stale then
-		local ok, result = pcall(function()
-			local function get_sev(s)
-				return #vim.diagnostic.get(0, { severity = s })
-			end
-
-			return {
-				errors = get_sev(vim.diagnostic.severity.ERROR),
-				warnings = get_sev(vim.diagnostic.severity.WARN),
-				info = get_sev(vim.diagnostic.severity.INFO),
-				hints = get_sev(vim.diagnostic.severity.HINT),
-			}
-		end)
-
-		if not ok then
-			cache = { str = "", timestamp = now }
-		else
-			local res = result
-			local total = res.errors + res.warnings + res.hints + res.info
-			local parts = {}
-
-			if res.errors > 0 then
-				table.insert(parts, hl_str("DiagnosticError", M.get_icon("error") .. " " .. res.errors))
-			end
-
-			if res.warnings > 0 then
-				table.insert(parts, hl_str("DiagnosticWarn", M.get_icon("warn") .. " " .. res.warnings))
-			end
-
-			if res.info > 0 then
-				table.insert(parts, hl_str("DiagnosticInfo", M.get_icon("info") .. " " .. res.info))
-			end
-
-			if res.hints > 0 then
-				table.insert(parts, hl_str("DiagnosticHint", M.get_icon("hint") .. " " .. res.hints))
-			end
-
-			local str = vim.bo.modifiable and total > 0 and (table.concat(parts, " ") .. " ") or ""
-			cache = { str = str, timestamp = now }
+-- Invalidate diagnostics cache on change
+vim.api.nvim_create_autocmd("DiagnosticChanged", {
+	callback = function(args)
+		local b = vim.b[args.buf]
+		if b and b.status_cache then
+			b.status_cache.diagnostics = nil
 		end
+	end,
+})
 
-		vim.b.status_cache.diagnostics = cache
+function M.diagnostics()
+	-- Hard guards
+	if not vim.diagnostic or not vim.api.nvim_buf_is_valid(0) then
+		return ""
 	end
 
-	return cache.str or ""
+	local b = vim.b
+	b.status_cache = b.status_cache or {}
+
+	local cache = b.status_cache.diagnostics
+	local now = vim.uv.now()
+
+	-- Adaptive staleness (kept as safety net)
+	local lines = vim.api.nvim_buf_line_count(0)
+	local stale = math.min(20000, 5000 + lines * 2)
+
+	if cache and (now - cache.timestamp) <= stale then
+		return cache.str or ""
+	end
+
+	local diagnostics = vim.diagnostic.get(0)
+	if #diagnostics == 0 then
+		cache = { str = "", timestamp = now, counts = nil }
+		b.status_cache.diagnostics = cache
+		return ""
+	end
+
+	-- Single-pass severity count
+	local counts = { errors = 0, warnings = 0, info = 0, hints = 0 }
+
+	for _, d in ipairs(diagnostics) do
+		local sev = d.severity
+		if sev == vim.diagnostic.severity.ERROR then
+			counts.errors = counts.errors + 1
+		elseif sev == vim.diagnostic.severity.WARN then
+			counts.warnings = counts.warnings + 1
+		elseif sev == vim.diagnostic.severity.INFO then
+			counts.info = counts.info + 1
+		elseif sev == vim.diagnostic.severity.HINT then
+			counts.hints = counts.hints + 1
+		end
+	end
+
+	local total = counts.errors + counts.warnings + counts.info + counts.hints
+
+	local parts = {}
+
+	if counts.errors > 0 then
+		parts[#parts + 1] = hl_str("DiagnosticError", DIAG_ICONS.error .. " " .. counts.errors)
+	end
+
+	if counts.warnings > 0 then
+		parts[#parts + 1] = hl_str("DiagnosticWarn", DIAG_ICONS.warn .. " " .. counts.warnings)
+	end
+
+	if counts.info > 0 then
+		parts[#parts + 1] = hl_str("DiagnosticInfo", DIAG_ICONS.info .. " " .. counts.info)
+	end
+
+	if counts.hints > 0 then
+		parts[#parts + 1] = hl_str("DiagnosticHint", DIAG_ICONS.hint .. " " .. counts.hints)
+	end
+
+	local str = (vim.bo.modifiable and total > 0) and (table.concat(parts, " ") .. " ") or ""
+
+	cache = {
+		str = str,
+		timestamp = now,
+		counts = counts,
+	}
+
+	b.status_cache.diagnostics = cache
+	return str
 end
 
 -- File encoding
@@ -439,6 +430,39 @@ function M.progress_bar()
 	end
 
 	return cache.str
+end
+
+-- LSP Progress
+M.state = M.state or { lsp_msg = "" }
+
+local spinners = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" }
+local spinner_index = 1
+
+--- Returns the formatted LSP progress message (with spinner)
+---@return string
+function M.lsp_progress()
+	if vim.o.columns < 100 then
+		return ""
+	end
+
+	local msg = M.state.lsp_msg
+	if msg == "" then
+		return ""
+	end
+
+	-- Truncate if too long
+	if vim.fn.strwidth(msg) > 60 then
+		msg = utils.truncate(msg, 57, "…")
+	end
+
+	-- Add spinner only when there's active progress
+	local spinner = ""
+	if msg:match("%d+%%") then
+		spinner = spinners[spinner_index] .. " "
+		spinner_index = (spinner_index % #spinners) + 1
+	end
+
+	return utils.hl_str("SL_LspProgress", spinner .. msg) .. " "
 end
 
 -- Filetype

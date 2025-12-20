@@ -1,8 +1,6 @@
 ---@module "custom.statusline"
 local M = {}
 
-
-
 local components = require("statusline.component")
 
 --- Default config
@@ -21,6 +19,7 @@ local defaults = {
 		diagnostics = { enabled = true },
 		file_info = { enabled = true, show_size = true },
 		progress = { enabled = true, style = "bar" },
+		lsp_progress = { enabled = true, min_width = 100 },
 	},
 
 	refresh_rate = 100, -- ms for debounce
@@ -81,6 +80,7 @@ function M.setup(opts)
 		SLGitRemoved = { fg = "#f7768e", bg = bg_hex },
 		SLEncoding = { fg = "#7aa2f7", bg = bg_hex },
 		SLFormat = { fg = "#7aa2f7", bg = bg_hex },
+		SL_LspProgress = { fg = "#7dcfff", bg = bg_hex, bold = true },
 	}
 
 	for name, hl_opts in pairs(highlights) do
@@ -285,6 +285,14 @@ function M.setup(opts)
 		-- Right side
 		local right = {}
 
+		if opts.components.lsp_progress.enabled and width >= opts.components.lsp_progress.min_width then
+			local lsp_prog = components.lsp_progress()
+			if lsp_prog ~= "" then
+				table.insert(right, lsp_prog)
+				table.insert(right, components.separator("dot")) -- or "angle_right"
+			end
+		end
+
 		-- Show any active indicators (only in wider windows)
 		if width >= 100 then
 			for _, fn in ipairs({
@@ -373,6 +381,42 @@ function M.setup(opts)
 				vim.b.status_cache.git = nil
 			end
 			debounced_redraw(opts.refresh_rate)
+		end,
+	})
+
+	-- LSP Progress
+	vim.api.nvim_create_autocmd("LspProgress", {
+		group = "StatuslineEvents",
+		callback = function(args)
+			if not (args.data and args.data.params and args.data.params.value) then
+				return
+			end
+
+			local value = args.data.params.value
+
+			if value.kind == "end" then
+				M.state.lsp_msg = ""
+			else
+				local progress = ""
+				if value.percentage then
+					progress = string.format("%d%% ", value.percentage)
+				end
+
+				local title = value.title or ""
+				local message = value.message or ""
+
+				-- Clean up some common verbose messages
+				if message:match("^%d+/%d+$") then
+					message = message
+				elseif message ~= "" then
+					message = " - " .. message
+				end
+
+				M.state.lsp_msg = progress .. title .. message
+			end
+
+			-- Redraw statusline
+			debounced_redraw(50) -- slightly slower than mode change to avoid flicker
 		end,
 	})
 
