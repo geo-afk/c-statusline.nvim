@@ -4,6 +4,7 @@ local hl_str = utils.hl_str
 
 local M = {}
 M._hls = {}
+M.config = {} -- Will be populated by init.lua
 
 -- Icon sets with fallbacks
 local icon_sets = {
@@ -54,10 +55,14 @@ local icon_sets = {
 	},
 }
 
+-- Setup function to receive config from init.lua
+function M.setup(config)
+	M.config = config or {}
+end
+
 -- Get icon based on configured set
 function M.get_icon(name)
-	local statusline = package.loaded["statusline"]
-	local icon_set = (statusline and statusline.config and statusline.config.icon_set) or "nerd_v3"
+	local icon_set = M.config.icon_set or "nerd_v3"
 	return icon_sets[icon_set][name] or icon_sets.ascii[name] or "?"
 end
 
@@ -227,7 +232,6 @@ function M.git_branch()
 end
 
 -- Git status with icons and caching
-
 local function stbufnr()
 	return vim.api.nvim_win_get_buf(vim.g.statusline_winid or 0)
 end
@@ -359,7 +363,6 @@ function M.file_encoding()
 end
 
 -- File format
-
 function M.file_format()
 	local format = vim.bo.fileformat
 	local icons = {
@@ -434,7 +437,6 @@ end
 
 -- LSP Progress
 M.state = M.state or { lsp_msg = "" }
-
 local spinners = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" }
 local spinner_index = 1
 
