@@ -1,6 +1,8 @@
 ---@module "custom.statusline"
 local M = {}
 
+
+
 local components = require("statusline.component")
 
 --- Default config

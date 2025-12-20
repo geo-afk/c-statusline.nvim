@@ -228,49 +228,77 @@ end
 
 -- Git status with icons and caching
 
-function M.git_status()
-	if not vim.b.status_cache then
-		vim.b.status_cache = {}
-	end
-	local cache = vim.b.status_cache.git
-	-- get high-resolution time in ms
-	local now_ns = vim.loop.hrtime()
-	local now = now_ns / 1e6
-	local lines = vim.api.nvim_buf_line_count(0)
-	-- stale threshold in ms
-	local stale = (lines > 10000) and 30000 or 10000
-
-	if not cache or (now - (cache.timestamp or 0)) > stale then
-		local ok, gitsigns = pcall(function()
-			return vim.b.gitsigns_status_dict
-		end)
-
-		if not ok or not gitsigns then
-			cache = { str = "", timestamp = now }
-		else
-			local parts = {}
-
-			if gitsigns.added and gitsigns.added > 0 then
-				table.insert(parts, hl_str("SLGitAdded", M.get_icon("added") .. " " .. gitsigns.added))
-			end
-
-			if gitsigns.changed and gitsigns.changed > 0 then
-				table.insert(parts, hl_str("SLGitChanged", M.get_icon("changed") .. " " .. gitsigns.changed))
-			end
-
-			if gitsigns.removed and gitsigns.removed > 0 then
-				table.insert(parts, hl_str("SLGitRemoved", M.get_icon("removed") .. " " .. gitsigns.removed))
-			end
-
-			local str = #parts == 0 and "" or (table.concat(parts, " ") .. " ")
-			cache = { str = str, timestamp = now }
-		end
-
-		vim.b.status_cache.git = cache
-	end
-
-	return cache.str or ""
+local function stbufnr()
+	return vim.api.nvim_win_get_buf(vim.g.statusline_winid or 0)
 end
+
+M.git_status = function()
+	local status = vim.b[stbufnr()].gitsigns_status_dict
+	if not status or not status.head then
+		return ""
+	end
+
+	local stats = ""
+	if vim.o.columns > 90 then
+		local parts = {}
+		if status.added and status.added > 0 then
+			table.insert(parts, hl_str("SLGitAdded", M.get_icon("added") .. " " .. status.added))
+		end
+		if status.changed and status.changed > 0 then
+			table.insert(parts, hl_str("SLGitChanged", M.get_icon("changed") .. " " .. status.changed))
+		end
+		if status.removed and status.removed > 0 then
+			table.insert(parts, hl_str("SLGitRemoved", M.get_icon("removed") .. " " .. status.removed))
+		end
+		stats = #parts == 0 and "" or (table.concat(parts, " ") .. " ")
+	end
+
+	return stats
+end
+
+-- function M.git_status()
+-- 	if not vim.b.status_cache then
+-- 		vim.b.status_cache = {}
+-- 	end
+-- 	local cache = vim.b.status_cache.git
+-- 	-- get high-resolution time in ms
+-- 	local now_ns = vim.loop.hrtime()
+-- 	local now = now_ns / 1e6
+-- 	local lines = vim.api.nvim_buf_line_count(0)
+-- 	-- stale threshold in ms
+-- 	local stale = (lines > 10000) and 30000 or 10000
+--
+-- 	if not cache or (now - (cache.timestamp or 0)) > stale then
+-- 		local ok, gitsigns = pcall(function()
+-- 			return vim.b.gitsigns_status_dict
+-- 		end)
+--
+-- 		if not ok or not gitsigns then
+-- 			cache = { str = "", timestamp = now }
+-- 		else
+-- 			local parts = {}
+--
+-- 			if gitsigns.added and gitsigns.added > 0 then
+-- 				table.insert(parts, hl_str("SLGitAdded", M.get_icon("added") .. " " .. gitsigns.added))
+-- 			end
+--
+-- 			if gitsigns.changed and gitsigns.changed > 0 then
+-- 				table.insert(parts, hl_str("SLGitChanged", M.get_icon("changed") .. " " .. gitsigns.changed))
+-- 			end
+--
+-- 			if gitsigns.removed and gitsigns.removed > 0 then
+-- 				table.insert(parts, hl_str("SLGitRemoved", M.get_icon("removed") .. " " .. gitsigns.removed))
+-- 			end
+--
+-- 			local str = #parts == 0 and "" or (table.concat(parts, " ") .. " ")
+-- 			cache = { str = str, timestamp = now }
+-- 		end
+--
+-- 		vim.b.status_cache.git = cache
+-- 	end
+--
+-- 	return cache.str or ""
+-- end
 
 -- Diagnostics with detailed counts
 function M.diagnostics()
