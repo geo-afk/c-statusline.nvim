@@ -436,42 +436,17 @@ function M.progress_bar()
 end
 
 -- LSP Progress
--- Modern LSP Progress Indicator
-M.state = M.state or { lsp_msg = "", active = false }
 
--- Modern spinners (emoji-based, looks better on most terminals)
-local spinners = {
-	"⠋",
-	"⠙",
-	"⠹",
-	"⠸",
-	"⠼",
-	"⠴",
-	"⠦",
-	"⠧",
-	"⠇",
-	"⠏", -- classic
-	"◜",
-	"◝",
-	"◞",
-	"◟",
-	"◠",
-	"◡",
-	"⠿",
-	"⢿",
-	"⣻",
-	"⣽", -- optional modern set
-}
--- You can choose one set:
--- local active_spinners = spinners  -- classic
-local active_spinners = { "⣾", "⣷", "⣯", "⣟", "⡿", "⢿", "⣻", "⣽" } -- nicer modern
+M.state = M.state or { lsp_msg = "" }
 
+local spinners = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" }
 local spinner_index = 1
 
---- Format LSP progress message with modern look
+--- Returns the formatted LSP progress message (with spinner)
 ---@return string
 function M.lsp_progress()
-	if vim.o.columns < 90 then
+	-- Avoid clutter on narrow windows
+	if vim.o.columns < 100 then
 		return ""
 	end
 
@@ -480,41 +455,31 @@ function M.lsp_progress()
 		return ""
 	end
 
-	-- Extract percentage if present
-	local percent = msg:match("(%d+)%%")
-	local clean_msg = msg:gsub(" ?%d+%%", ""):gsub("^%s*(.-)%s*$", "%1")
-
-	-- Truncate message part (keep some room for percentage/spinner)
-	local max_msg_width = 45
-	if vim.fn.strwidth(clean_msg) > max_msg_width then
-		clean_msg = utils.truncate(clean_msg, max_msg_width - 3, "…")
+	-- Truncate long messages
+	if vim.fn.strwidth(msg) > 60 then
+		msg = utils.truncate(msg, 57, "…")
 	end
 
-	-- Build components
+	local spinner = ""
+	local has_progress = msg:match("%d+%%")
+
+	if has_progress then
+		spinner = spinners[spinner_index]
+		spinner_index = (spinner_index % #spinners) + 1
+	end
+
+	-- Modern layout: [ ⠋ · Indexing files ]
 	local parts = {}
 
-	-- Optional icon
-	if M.state.active then
-		table.insert(parts, utils.hl_str("SL_LspProgressIcon", " "))
+	if spinner ~= "" then
+		table.insert(parts, spinner)
 	end
 
-	-- Spinner (only when active)
-	if M.state.active then
-		local spinner = active_spinners[spinner_index]
-		spinner_index = (spinner_index % #active_spinners) + 1
-		table.insert(parts, utils.hl_str("SL_LspProgressSpinner", spinner .. " "))
-	end
+	table.insert(parts, msg)
 
-	-- Main message
-	table.insert(parts, utils.hl_str("SL_LspProgress", clean_msg))
+	local content = table.concat(parts, " · ")
 
-	-- Percentage (colored)
-	if percent then
-		table.insert(parts, " " .. utils.hl_str("SL_LspProgressPercent", percent .. "%"))
-	end
-
-	-- Final spacing
-	return table.concat(parts, "") .. " "
+	return utils.hl_str("SL_LspProgress", "[ " .. content .. " ]") .. " "
 end
 
 -- Filetype
