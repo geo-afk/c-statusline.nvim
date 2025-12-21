@@ -93,13 +93,6 @@ function M.setup(opts)
 		SLEncoding = { fg = "#7aa2f7", bg = bg_hex },
 		SLFormat = { fg = "#7aa2f7", bg = bg_hex },
 		SL_LspProgress = { fg = "#7dcfff", bg = bg_hex, bold = true },
-		-- Enhanced LSP Progress styling with more visual distinction
-		SL_LspProgress_Spinner = { fg = "#7dcfff", bg = bg_hex, bold = true },
-		SL_LspProgress_Title = { fg = "#c0caf5", bg = bg_hex },
-		SL_LspProgress_Counter = { fg = "#9ece6a", bg = bg_hex, bold = true },
-		SL_LspProgress_Percent = { fg = "#e0af68", bg = "#2a2a3a", bold = true },
-		SL_LspProgress_Message = { fg = "#7aa2f7", bg = bg_hex },
-		SL_LspProgress_Border = { fg = "#565f89", bg = bg_hex },
 	}
 
 	for name, hl_opts in pairs(highlights) do
