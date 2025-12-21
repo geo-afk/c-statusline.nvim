@@ -444,24 +444,24 @@ local SEP = " · "
 
 -- Normalize spacing inside LSP messages
 local function normalize_lsp_message(msg)
-	-- 20/40 -> 20 / 40
 	msg = msg:gsub("(%d+)%s*/%s*(%d+)", "%1 / %2")
-	-- camelCase / PascalCase -> words
 	msg = msg:gsub("([a-z])([A-Z])", "%1 %2")
 	return msg
 end
 
--- Split message into logical parts
+-- Split message into logical parts (preserve %)
 local function split_lsp_parts(msg)
 	local parts = {}
+	local percent
 
-	-- Extract counters and percentages
-	msg = msg:gsub("(%d+ / %d+)", function(m)
-		table.insert(parts, m)
+	-- Extract percentage FIRST and preserve it verbatim
+	msg = msg:gsub("(%d+%%)", function(m)
+		percent = m
 		return ""
 	end)
 
-	msg = msg:gsub("(%d+%%)", function(m)
+	-- Extract file counters
+	msg = msg:gsub("(%d+ / %d+)", function(m)
 		table.insert(parts, m)
 		return ""
 	end)
@@ -470,6 +470,11 @@ local function split_lsp_parts(msg)
 	msg = vim.trim(msg)
 	if msg ~= "" then
 		table.insert(parts, 1, msg)
+	end
+
+	-- Append percentage last (with % intact)
+	if percent then
+		table.insert(parts, percent)
 	end
 
 	return parts
