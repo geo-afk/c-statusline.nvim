@@ -434,45 +434,53 @@ function M.progress_bar()
 
 	return cache.str
 end
--- local spinners = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" }
 
 -- LSP Progress
 M.state = M.state or { lsp_msg = "" }
 
--- Simple spinner frames
 local spinners = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" }
 local spinner_index = 1
+local SEP = " · "
 
--- Parse LSP message into components
-local function parse_lsp_message(msg)
-	local result = {
-		message = "",
-		counter = "",
-		percentage = "",
-	}
-
-	-- Extract percentage (e.g., "45%")
-	msg = msg:gsub("(%d+)%%", function(m)
-		result.percentage = m .. "%"
-		return ""
-	end)
-
-	-- Extract file/item counters (e.g., "5/10" or "5 / 10")
-	msg = msg:gsub("(%d+)%s*/%s*(%d+)", function(current, total)
-		result.counter = current .. "/" .. total
-		return ""
-	end)
-
-	-- Clean up remaining text as message
-	msg = vim.trim(msg)
-	if msg ~= "" then
-		result.message = msg
-	end
-
-	return result
+-- Normalize spacing inside LSP messages
+local function normalize_lsp_message(msg)
+	msg = msg:gsub("(%d+)%s*/%s*(%d+)", "%1 / %2")
+	msg = msg:gsub("([a-z])([A-Z])", "%1 %2")
+	return msg
 end
 
---- Returns the formatted LSP progress message
+-- Split message into logical parts (preserve %)
+local function split_lsp_parts(msg)
+	local parts = {}
+	local percent
+
+	-- Extract percentage FIRST and preserve it verbatim
+	msg = msg:gsub("(%d+%%)", function(m)
+		percent = m
+		return ""
+	end)
+
+	-- Extract file counters
+	msg = msg:gsub("(%d+ / %d+)", function(m)
+		table.insert(parts, m)
+		return ""
+	end)
+
+	-- Remaining text
+	msg = vim.trim(msg)
+	if msg ~= "" then
+		table.insert(parts, 1, msg)
+	end
+
+	-- Append percentage last (with % intact)
+	if percent then
+		table.insert(parts, percent)
+	end
+
+	return parts
+end
+
+--- Returns the formatted LSP progress message (with spinner)
 ---@return string
 function M.lsp_progress()
 	if vim.o.columns < 100 then
@@ -484,41 +492,24 @@ function M.lsp_progress()
 		return ""
 	end
 
-	local parsed = parse_lsp_message(msg)
-	local parts = {}
+	msg = normalize_lsp_message(msg)
 
-	-- Spinner
-	local spinner_hl = M.get_or_create_hl("#7dcfff", "StatusLine", { bold = true })
-	table.insert(parts, spinner_hl .. spinners[spinner_index] .. "%*")
-	spinner_index = (spinner_index % #spinners) + 1
+	local parts = split_lsp_parts(msg)
 
-	-- Message/Title
-	if parsed.message ~= "" then
-		local msg_hl = M.get_or_create_hl("#c0caf5", "StatusLine")
-		table.insert(parts, msg_hl .. parsed.message .. "%*")
+	-- Spinner only when progress is active
+	if msg:match("%d+%%") or msg:match("%d+ / %d+") then
+		table.insert(parts, 1, spinners[spinner_index])
+		spinner_index = (spinner_index % #spinners) + 1
 	end
 
-	-- Counter (e.g., "1/2 loaded files")
-	if parsed.counter ~= "" then
-		local counter_hl = M.get_or_create_hl("#9ece6a", "StatusLine", { bold = true })
-		table.insert(parts, counter_hl .. parsed.counter .. "%*")
-	end
+	local content = table.concat(parts, SEP)
 
-	-- Percentage (e.g., "90%")
-	if parsed.percentage ~= "" then
-		local pct_hl = M.get_or_create_hl("#e0af68", "StatusLine", { bold = true })
-		table.insert(parts, pct_hl .. parsed.percentage .. "%*")
-	end
-
-	-- Join with simple spaces
-	local content = table.concat(parts, " ")
-
-	-- Truncate if needed
+	-- Truncate final result
 	if vim.fn.strwidth(content) > 60 then
 		content = utils.truncate(content, 57, "…")
 	end
 
-	return utils.hl_str("SL_LspProgress", content) .. " "
+	return utils.hl_str("SL_LspProgress", "[ " .. content .. " ]") .. " "
 end
 
 -- Filetype
