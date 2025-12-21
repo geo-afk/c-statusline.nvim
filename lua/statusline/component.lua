@@ -4,7 +4,8 @@ local hl_str = utils.hl_str
 
 local M = {}
 M._hls = {}
-M.config = {} -- Will be populated by init.lua
+M.config = {}
+M.state = { lsp_msg = "" }
 
 -- Icon sets with fallbacks
 local icon_sets = {
@@ -60,7 +61,6 @@ function M.setup(config)
 	M.config = config or {}
 end
 
--- Get icon based on configured set
 function M.get_icon(name)
 	local icon_set = M.config.icon_set or "nerd_v3"
 	return icon_sets[icon_set][name] or icon_sets.ascii[name] or "?"
@@ -73,7 +73,6 @@ function M.get_or_create_hl(fg, bg, opts)
 	bg = bg or "StatusLine"
 	fg = fg or "#ffffff"
 
-	-- Create cache key (fixed to handle booleans as strings)
 	local bold_str = opts.bold and "bold" or ""
 	local italic_str = opts.italic and "italic" or ""
 	local key = table.concat({ tostring(fg), tostring(bg), bold_str, italic_str }, "_")
@@ -84,13 +83,8 @@ function M.get_or_create_hl(fg, bg, opts)
 
 	local sanitized_fg = tostring(fg):gsub("#", "")
 	local sanitized_bg = tostring(bg):gsub("#", "")
-	local suffix = ""
-	if opts.bold then
-		suffix = suffix .. "B"
-	end
-	if opts.italic then
-		suffix = suffix .. "I"
-	end
+	local suffix = opts.bold and "B" or ""
+	suffix = suffix .. (opts.italic and "I" or "")
 	local name = "SL" .. sanitized_fg .. sanitized_bg .. suffix
 
 	if not M._hls[name] then
@@ -127,16 +121,13 @@ function M.get_or_create_hl(fg, bg, opts)
 	return result
 end
 
--- Simple padding
 function M.padding(nr)
 	return string.rep(" ", nr or 1)
 end
 
--- Configurable separator
 local separator_cache = {}
 function M.separator(style)
 	style = style or "vertical"
-
 	if separator_cache[style] then
 		return separator_cache[style]
 	end
@@ -147,7 +138,6 @@ function M.separator(style)
 	return result
 end
 
--- Enhanced file icon with error handling
 function M.file_icon()
 	local ok, devicons = pcall(require, "nvim-web-devicons")
 	local icon, igroup
@@ -172,7 +162,6 @@ function M.file_icon()
 	return hl_str(igroup, icon)
 end
 
--- File info with size cache
 local file_cache = {}
 function M.fileinfo(opts)
 	opts = opts or { add_icon = true, show_size = true }
@@ -231,12 +220,11 @@ function M.git_branch()
 	return hl_str("SLGitBranch", icon .. " " .. branch) .. " "
 end
 
--- Git status with icons and caching
 local function stbufnr()
 	return vim.api.nvim_win_get_buf(vim.g.statusline_winid or 0)
 end
 
-M.git_status = function()
+function M.git_status()
 	local status = vim.b[stbufnr()].gitsigns_status_dict
 	if not status or not status.head then
 		return ""
@@ -260,7 +248,6 @@ M.git_status = function()
 	return stats
 end
 
--- Prebind icons once
 local DIAG_ICONS = {
 	error = M.get_icon("error"),
 	warn = M.get_icon("warn"),
@@ -268,7 +255,6 @@ local DIAG_ICONS = {
 	hint = M.get_icon("hint"),
 }
 
--- Invalidate diagnostics cache on change
 vim.api.nvim_create_autocmd("DiagnosticChanged", {
 	callback = function(args)
 		local b = vim.b[args.buf]
@@ -279,7 +265,6 @@ vim.api.nvim_create_autocmd("DiagnosticChanged", {
 })
 
 function M.diagnostics()
-	-- Hard guards
 	if not vim.diagnostic or not vim.api.nvim_buf_is_valid(0) then
 		return ""
 	end
@@ -289,8 +274,6 @@ function M.diagnostics()
 
 	local cache = b.status_cache.diagnostics
 	local now = vim.uv.now()
-
-	-- Adaptive staleness (kept as safety net)
 	local lines = vim.api.nvim_buf_line_count(0)
 	local stale = math.min(20000, 5000 + lines * 2)
 
@@ -305,7 +288,6 @@ function M.diagnostics()
 		return ""
 	end
 
-	-- Single-pass severity count
 	local counts = { errors = 0, warnings = 0, info = 0, hints = 0 }
 
 	for _, d in ipairs(diagnostics) do
@@ -322,21 +304,17 @@ function M.diagnostics()
 	end
 
 	local total = counts.errors + counts.warnings + counts.info + counts.hints
-
 	local parts = {}
 
 	if counts.errors > 0 then
 		parts[#parts + 1] = hl_str("DiagnosticError", DIAG_ICONS.error .. " " .. counts.errors)
 	end
-
 	if counts.warnings > 0 then
 		parts[#parts + 1] = hl_str("DiagnosticWarn", DIAG_ICONS.warn .. " " .. counts.warnings)
 	end
-
 	if counts.info > 0 then
 		parts[#parts + 1] = hl_str("DiagnosticInfo", DIAG_ICONS.info .. " " .. counts.info)
 	end
-
 	if counts.hints > 0 then
 		parts[#parts + 1] = hl_str("DiagnosticHint", DIAG_ICONS.hint .. " " .. counts.hints)
 	end
@@ -353,7 +331,6 @@ function M.diagnostics()
 	return str
 end
 
--- File encoding
 function M.file_encoding()
 	local enc = vim.bo.fileencoding or vim.o.encoding
 	if enc:upper() == "UTF-8" then
@@ -362,29 +339,24 @@ function M.file_encoding()
 	return hl_str("SLEncoding", enc:upper()) .. " "
 end
 
--- File format
 function M.file_format()
 	local format = vim.bo.fileformat
 	local icons = {
-		unix = " ", -- LF (Unix / Linux)
-		dos = " ", -- CRLF (Windows)
-		mac = " ", -- CR (Classic Mac)
+		unix = " ",
+		dos = " ",
+		mac = " ",
 	}
-
 	return hl_str("SLFormat", icons[format] or format) .. " "
 end
 
--- Position
 function M.position()
 	return hl_str("SLPosition", "%3l:%-2c")
 end
 
--- Total lines
 function M.total_lines()
 	return hl_str("SLDim", "/%L")
 end
 
--- Progress bar with percentage and caching
 local progress_cache = {}
 function M.progress_bar()
 	local buf = vim.api.nvim_get_current_buf()
@@ -435,61 +407,41 @@ function M.progress_bar()
 	return cache.str
 end
 
--- LSP Progress
-M.state = M.state or { lsp_msg = "" }
-
+-- LSP Progress improvements
 local spinners = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" }
 local spinner_index = 1
 local SEP = " · "
 
--- Normalize spacing and semantics in LSP messages
 local function normalize_lsp_message(msg)
-	-- 20/40 -> 20 / 40
 	msg = msg:gsub("(%d+)%s*/%s*(%d+)", "%1 / %2")
-
-	-- camelCase / PascalCase -> words
 	msg = msg:gsub("([a-z])([A-Z])", "%1 %2")
-
-	-- Standalone progress number -> percentage
-	-- e.g. "Loading workspace 42" -> "Loading workspace 42%"
-	msg = msg:gsub("(%s)(%d%d?)$", function(space, num)
+	msg = msg:gsub("(%s)(%d+)$", function(space, num)
 		local n = tonumber(num)
-		if n and n >= 1 and n <= 100 then
+		if n and n >= 0 and n <= 100 then
 			return space .. num .. "%"
 		end
 		return space .. num
 	end)
-
 	return msg
 end
 
--- Split message into logical parts
 local function split_lsp_parts(msg)
 	local parts = {}
-
-	-- Extract file counters
 	msg = msg:gsub("(%d+ / %d+)", function(m)
 		table.insert(parts, m)
 		return ""
 	end)
-
-	-- Extract percentage (now guaranteed to include %)
 	msg = msg:gsub("(%d+%%)", function(m)
 		table.insert(parts, m)
 		return ""
 	end)
-
-	-- Remaining text
 	msg = vim.trim(msg)
 	if msg ~= "" then
 		table.insert(parts, 1, msg)
 	end
-
 	return parts
 end
 
---- Returns the formatted LSP progress message (with spinner)
----@return string
 function M.lsp_progress()
 	if vim.o.columns < 100 then
 		return ""
@@ -501,26 +453,40 @@ function M.lsp_progress()
 	end
 
 	msg = normalize_lsp_message(msg)
-
 	local parts = split_lsp_parts(msg)
 
-	-- Spinner when progress is active
-	if msg:match("%d+%%") or msg:match("%d+ / %d+") then
-		table.insert(parts, 1, spinners[spinner_index])
-		spinner_index = (spinner_index % #spinners) + 1
+	local formatted_parts = {}
+	for _, part in ipairs(parts) do
+		if part:match("^%d+%%$") or part:match("^%(%d+%%%)$") or part:match("^%d+ / %d+$") then
+			table.insert(formatted_parts, "%#SL_LspProgressPercent#" .. part .. "%#SL_LspProgress#")
+		else
+			table.insert(formatted_parts, "%#SL_LspProgress#" .. part .. "%#SL_LspProgress#")
+		end
 	end
 
-	local content = table.concat(parts, SEP)
+	local content = table.concat(formatted_parts, SEP)
 
-	-- Truncate final output
+	local spinner_str = ""
+	local has_progress = msg:match("%d+%%") or msg:match("%d+ / %d+")
+	if has_progress then
+		spinner_str = "%#SL_LspProgressSpinner#" .. spinners[spinner_index] .. "%#SL_LspProgress#"
+		spinner_index = (spinner_index % #spinners) + 1
+	else
+		spinner_str = "%#SL_LspProgressSpinner#✓%#SL_LspProgress#"
+	end
+
+	if spinner_str ~= "" then
+		content = spinner_str .. " " .. content
+	end
+
 	if vim.fn.strwidth(content) > 60 then
 		content = utils.truncate(content, 57, "…")
 	end
 
-	return utils.hl_str("SL_LspProgress", "[ " .. content .. " ]") .. " "
+	local icon = "%#SL_LspProgressIcon#%#SL_LspProgress#"
+	return icon .. " " .. content .. " "
 end
 
--- Filetype
 function M.filetype()
 	local ft = vim.bo.filetype
 	if ft == "" then
@@ -529,7 +495,6 @@ function M.filetype()
 	return hl_str("SLFiletype", ft:upper())
 end
 
--- Macro recording
 function M.macro_recording()
 	local ok, reg = pcall(vim.fn.reg_recording)
 	if not ok or reg == "" then
@@ -538,7 +503,6 @@ function M.macro_recording()
 	return hl_str("SLModified", " ● REC @" .. reg .. " ")
 end
 
--- Maximized window
 function M.maximized_status()
 	if not vim.b.is_zoomed then
 		return ""
@@ -546,7 +510,6 @@ function M.maximized_status()
 	return hl_str("SLModified", " ⛶ ")
 end
 
--- Search count
 function M.search_count()
 	if vim.v.hlsearch == 0 then
 		return ""
@@ -560,13 +523,12 @@ function M.search_count()
 	return hl_str("SLMatches", string.format(" [%d/%d] ", result.current, result.total))
 end
 
--- Enhanced cache invalidation
+-- Cache management
 local function invalidate_caches()
 	vim.b.status_cache = nil
 	file_cache[vim.api.nvim_get_current_buf()] = nil
 end
 
--- Cleanup for large buffers
 local function cleanup_large_buffer_cache(bufnr)
 	local ok, lines = pcall(vim.api.nvim_buf_line_count, bufnr)
 	if ok and lines > 50000 then
@@ -575,7 +537,6 @@ local function cleanup_large_buffer_cache(bufnr)
 	end
 end
 
--- Setup cache management
 vim.api.nvim_create_augroup("StatuslineCache", { clear = true })
 
 vim.api.nvim_create_autocmd({ "BufEnter", "FileType", "BufWritePost" }, {
@@ -590,7 +551,6 @@ vim.api.nvim_create_autocmd("BufDelete", {
 	group = "StatuslineCache",
 })
 
--- Specific cache invalidation on diagnostic changes
 vim.api.nvim_create_autocmd("DiagnosticChanged", {
 	callback = function()
 		if vim.b.status_cache then
