@@ -436,22 +436,43 @@ function M.progress_bar()
 end
 
 -- LSP Progress
-
--- LSP Progress
 M.state = M.state or { lsp_msg = "" }
 
 local spinners = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" }
 local spinner_index = 1
+local SEP = " · "
 
--- Normalize spacing in LSP messages
+-- Normalize spacing inside LSP messages
 local function normalize_lsp_message(msg)
-	-- Add spaces around file counters: 20/40 -> 20 / 40
+	-- 20/40 -> 20 / 40
 	msg = msg:gsub("(%d+)%s*/%s*(%d+)", "%1 / %2")
-
-	-- Fix common missing spaces (Loadingworkspace -> Loading workspace)
+	-- camelCase / PascalCase -> words
 	msg = msg:gsub("([a-z])([A-Z])", "%1 %2")
-
 	return msg
+end
+
+-- Split message into logical parts
+local function split_lsp_parts(msg)
+	local parts = {}
+
+	-- Extract counters and percentages
+	msg = msg:gsub("(%d+ / %d+)", function(m)
+		table.insert(parts, m)
+		return ""
+	end)
+
+	msg = msg:gsub("(%d+%%)", function(m)
+		table.insert(parts, m)
+		return ""
+	end)
+
+	-- Remaining text
+	msg = vim.trim(msg)
+	if msg ~= "" then
+		table.insert(parts, 1, msg)
+	end
+
+	return parts
 end
 
 --- Returns the formatted LSP progress message (with spinner)
@@ -468,19 +489,20 @@ function M.lsp_progress()
 
 	msg = normalize_lsp_message(msg)
 
-	-- Truncate long messages
-	if vim.fn.strwidth(msg) > 60 then
-		msg = utils.truncate(msg, 57, "…")
-	end
+	local parts = split_lsp_parts(msg)
 
-	local spinner = ""
+	-- Spinner only when progress is active
 	if msg:match("%d+%%") or msg:match("%d+ / %d+") then
-		spinner = spinners[spinner_index]
+		table.insert(parts, 1, spinners[spinner_index])
 		spinner_index = (spinner_index % #spinners) + 1
 	end
 
-	-- Modern layout: [ ⠋ · Loading workspace · 20 / 40 ]
-	local content = spinner ~= "" and (spinner .. " · " .. msg) or msg
+	local content = table.concat(parts, SEP)
+
+	-- Truncate final result
+	if vim.fn.strwidth(content) > 60 then
+		content = utils.truncate(content, 57, "…")
+	end
 
 	return utils.hl_str("SL_LspProgress", "[ " .. content .. " ]") .. " "
 end
