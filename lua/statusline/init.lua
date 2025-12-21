@@ -5,8 +5,8 @@ local components = require("statusline.component")
 
 -- Pass config to components immediately after requiring
 components.setup({
-	icon_set = "nerd_v3",
-	separator_style = "vertical",
+	icon_set = "nerd_v3", -- default or from opts later
+	separator_style = "vertical", -- default or from opts later
 })
 
 --- Default config
@@ -15,8 +15,9 @@ local defaults = {
 	fg_main = "#c0caf5",
 	fg_dim = "#565f89",
 
-	icon_set = "nerd_v3",
-	separator_style = "vertical",
+	-- New configuration options
+	icon_set = "nerd_v3", -- "nerd_v3", "nerd_v2", "ascii"
+	separator_style = "vertical", -- "vertical", "angle_right", "dot"
 
 	components = {
 		mode = { enabled = true, style = "bubble" },
@@ -143,35 +144,43 @@ function M.setup(opts)
 
 	-- Mode configuration with modern icons
 	local mode_config = {
+		-- Normal modes
 		n = { name = "NORMAL", hl = "StatusNormal", icon = "󰋜", desc = "Normal" },
 		no = { name = "N·OP", hl = "StatusNormal", icon = "󰋜", desc = "Operator Pending" },
 		nov = { name = "N·OP·V", hl = "StatusNormal", icon = "󰋜", desc = "Operator Pending Char" },
 		noV = { name = "N·OP·L", hl = "StatusNormal", icon = "󰋜", desc = "Operator Pending Line" },
 		["no\22"] = { name = "N·OP·B", hl = "StatusNormal", icon = "󰋜", desc = "Operator Pending Block" },
 
+		-- Visual modes
 		v = { name = "VISUAL", hl = "StatusVisual", icon = "󰈈", desc = "Visual" },
 		V = { name = "V·LINE", hl = "StatusVisual", icon = "󰈈", desc = "Visual Line" },
 		["\22"] = { name = "V·BLOCK", hl = "StatusVisual", icon = "󰈈", desc = "Visual Block" },
 
+		-- Select modes
 		s = { name = "SELECT", hl = "StatusSelect", icon = "󰈈", desc = "Select" },
 		S = { name = "S·LINE", hl = "StatusSelect", icon = "󰈈", desc = "Select Line" },
 		["\19"] = { name = "S·BLOCK", hl = "StatusSelect", icon = "󰈈", desc = "Select Block" },
 
+		-- Insert modes
 		i = { name = "INSERT", hl = "StatusInsert", icon = "󰏫", desc = "Insert" },
 		ic = { name = "I·COMP", hl = "StatusInsert", icon = "󰏫", desc = "Insert Completion" },
 		ix = { name = "I·COMP", hl = "StatusInsert", icon = "󰏫", desc = "Insert Completion" },
 
+		-- Replace modes
 		R = { name = "REPLACE", hl = "StatusReplace", icon = "󰛔", desc = "Replace" },
 		Rc = { name = "R·COMP", hl = "StatusReplace", icon = "󰛔", desc = "Replace Completion" },
 		Rv = { name = "V·REPLACE", hl = "StatusReplace", icon = "󰛔", desc = "Virtual Replace" },
 		Rx = { name = "R·COMP", hl = "StatusReplace", icon = "󰛔", desc = "Replace Completion" },
 
+		-- Command modes
 		c = { name = "COMMAND", hl = "StatusCommand", icon = "󰘳", desc = "Command" },
 		cv = { name = "EX", hl = "StatusCommand", icon = "󰘳", desc = "Ex" },
 		ce = { name = "EX", hl = "StatusCommand", icon = "󰘳", desc = "Ex" },
 
+		-- Terminal mode
 		t = { name = "TERMINAL", hl = "StatusTerminal", icon = "󰆍", desc = "Terminal" },
 
+		-- Misc
 		r = { name = "PROMPT", hl = "StatusCommand", icon = "?", desc = "Hit Enter Prompt" },
 		rm = { name = "MORE", hl = "StatusCommand", icon = "?", desc = "More" },
 		["r?"] = { name = "CONFIRM", hl = "StatusCommand", icon = "?", desc = "Confirm" },
@@ -293,7 +302,7 @@ function M.setup(opts)
 			local lsp_prog = components.lsp_progress()
 			if lsp_prog ~= "" then
 				table.insert(right, lsp_prog)
-				table.insert(right, components.separator("dot"))
+				table.insert(right, components.separator("dot")) -- or "angle_right"
 			end
 		end
 
@@ -311,7 +320,7 @@ function M.setup(opts)
 			end
 		end
 
-		-- File info (encoding/format)
+		-- File info (encoding/format) - skip in narrow windows
 		if width >= 120 then
 			local enc = components.file_encoding()
 			local fmt = components.file_format()
@@ -340,7 +349,7 @@ function M.setup(opts)
 		table.insert(right, components.total_lines())
 		table.insert(right, components.padding(1))
 
-		-- Progress bar
+		-- Progress bar (only in wider windows)
 		if opts.components.progress.enabled and width >= 100 then
 			table.insert(right, section_sep())
 			table.insert(right, components.progress_bar())
@@ -359,7 +368,7 @@ function M.setup(opts)
 	vim.api.nvim_create_autocmd({ "ModeChanged" }, {
 		group = "StatuslineEvents",
 		callback = function()
-			debounced_redraw(16)
+			debounced_redraw(16) -- Fast refresh for mode changes
 		end,
 	})
 
@@ -398,15 +407,13 @@ function M.setup(opts)
 			end
 
 			local value = args.data.params.value
-			local client = vim.lsp.get_client_by_id(args.data.client_id)
-			local client_name = client and client.name or "LSP"
 
 			if value.kind == "end" then
 				components.state.lsp_msg = ""
 			else
 				local progress = ""
 				if value.percentage then
-					progress = string.format("(%d%%)", value.percentage)
+					progress = string.format("%d%%", value.percentage)
 				end
 
 				local title = value.title or ""
@@ -418,18 +425,17 @@ function M.setup(opts)
 					message = " - " .. message
 				end
 
-				components.state.lsp_msg = string.format("[%s] %s%s%s", client_name, title, message, progress)
+				components.state.lsp_msg = progress .. (title ~= "" and " " .. title or "") .. message
 			end
 
 			debounced_redraw(50)
 		end,
 	})
 
-	-- LSP-specific highlights
-	vim.api.nvim_set_hl(0, "SL_LspProgressIcon", { fg = "#7aa2f7", bold = true }) -- blue gear
-	vim.api.nvim_set_hl(0, "SL_LspProgressSpinner", { fg = "#bb9af7", bold = true }) -- purple spinner
-	vim.api.nvim_set_hl(0, "SL_LspProgress", { fg = "#c0caf5", italic = true }) -- soft text
-	vim.api.nvim_set_hl(0, "SL_LspProgressPercent", { fg = "#9ece6a", bold = true }) -- green percentage
+	vim.api.nvim_set_hl(0, "SL_LspProgressIcon", { fg = "#7aa2f7", bold = true })
+	vim.api.nvim_set_hl(0, "SL_LspProgressSpinner", { fg = "#bb9af7", bold = true })
+	vim.api.nvim_set_hl(0, "SL_LspProgress", { fg = "#c0caf5", italic = true })
+	vim.api.nvim_set_hl(0, "SL_LspProgressPercent", { fg = "#9ece6a", bold = true })
 
 	-- Expose Status_line for external calls
 	M.Status_line = Status_line
