@@ -442,26 +442,39 @@ local spinners = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇"
 local spinner_index = 1
 local SEP = " · "
 
--- Normalize spacing inside LSP messages
+-- Normalize spacing and semantics in LSP messages
 local function normalize_lsp_message(msg)
+	-- 20/40 -> 20 / 40
 	msg = msg:gsub("(%d+)%s*/%s*(%d+)", "%1 / %2")
+
+	-- camelCase / PascalCase -> words
 	msg = msg:gsub("([a-z])([A-Z])", "%1 %2")
+
+	-- Standalone progress number -> percentage
+	-- e.g. "Loading workspace 42" -> "Loading workspace 42%"
+	msg = msg:gsub("(%s)(%d%d?)$", function(space, num)
+		local n = tonumber(num)
+		if n and n >= 1 and n <= 100 then
+			return space .. num .. "%"
+		end
+		return space .. num
+	end)
+
 	return msg
 end
 
--- Split message into logical parts (preserve %)
+-- Split message into logical parts
 local function split_lsp_parts(msg)
 	local parts = {}
-	local percent
-
-	-- Extract percentage FIRST and preserve it verbatim
-	msg = msg:gsub("(%d+%%)", function(m)
-		percent = m
-		return ""
-	end)
 
 	-- Extract file counters
 	msg = msg:gsub("(%d+ / %d+)", function(m)
+		table.insert(parts, m)
+		return ""
+	end)
+
+	-- Extract percentage (now guaranteed to include %)
+	msg = msg:gsub("(%d+%%)", function(m)
 		table.insert(parts, m)
 		return ""
 	end)
@@ -470,11 +483,6 @@ local function split_lsp_parts(msg)
 	msg = vim.trim(msg)
 	if msg ~= "" then
 		table.insert(parts, 1, msg)
-	end
-
-	-- Append percentage last (with % intact)
-	if percent then
-		table.insert(parts, percent)
 	end
 
 	return parts
@@ -496,7 +504,7 @@ function M.lsp_progress()
 
 	local parts = split_lsp_parts(msg)
 
-	-- Spinner only when progress is active
+	-- Spinner when progress is active
 	if msg:match("%d+%%") or msg:match("%d+ / %d+") then
 		table.insert(parts, 1, spinners[spinner_index])
 		spinner_index = (spinner_index % #spinners) + 1
@@ -504,7 +512,7 @@ function M.lsp_progress()
 
 	local content = table.concat(parts, SEP)
 
-	-- Truncate final result
+	-- Truncate final output
 	if vim.fn.strwidth(content) > 60 then
 		content = utils.truncate(content, 57, "…")
 	end
