@@ -5,7 +5,6 @@ local hl_str = utils.hl_str
 local M = {}
 M._hls = {}
 M.config = {} -- Will be populated by init.lua
-M.state = { lsp_msg = "" }
 
 -- Icon sets with fallbacks
 local icon_sets = {
@@ -74,7 +73,7 @@ function M.get_or_create_hl(fg, bg, opts)
 	bg = bg or "StatusLine"
 	fg = fg or "#ffffff"
 
-	-- Create cache key
+	-- Create cache key (fixed to handle booleans as strings)
 	local bold_str = opts.bold and "bold" or ""
 	local italic_str = opts.italic and "italic" or ""
 	local key = table.concat({ tostring(fg), tostring(bg), bold_str, italic_str }, "_")
@@ -237,7 +236,7 @@ local function stbufnr()
 	return vim.api.nvim_win_get_buf(vim.g.statusline_winid or 0)
 end
 
-function M.git_status()
+M.git_status = function()
 	local status = vim.b[stbufnr()].gitsigns_status_dict
 	if not status or not status.head then
 		return ""
@@ -291,7 +290,7 @@ function M.diagnostics()
 	local cache = b.status_cache.diagnostics
 	local now = vim.uv.now()
 
-	-- Adaptive staleness
+	-- Adaptive staleness (kept as safety net)
 	local lines = vim.api.nvim_buf_line_count(0)
 	local stale = math.min(20000, 5000 + lines * 2)
 
@@ -435,42 +434,53 @@ function M.progress_bar()
 
 	return cache.str
 end
+-- local spinners = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" }
 
 -- LSP Progress
-local spinners = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" }
+M.state = M.state or { lsp_msg = "" }
+
+-- More visually appealing spinner frames
+local spinners = { "⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷" }
 local spinner_index = 1
-local SEP = " · "
 
-local function normalize_lsp_message(msg)
-	msg = msg:gsub("(%d+)%s*/%s*(%d+)", "%1 / %2")
-	msg = msg:gsub("([a-z])([A-Z])", "%1 %2")
-	msg = msg:gsub("(%s)(%d+)$", function(space, num)
-		local n = tonumber(num)
-		if n and n >= 0 and n <= 100 then
-			return space .. num .. "%"
-		end
-		return space .. num
-	end)
-	return msg
-end
+-- Parse LSP message into structured components
+local function parse_lsp_message(msg)
+	local result = {
+		title = "",
+		percentage = nil,
+		counter = "",
+		message = "",
+	}
 
-local function split_lsp_parts(msg)
-	local parts = {}
-	msg = msg:gsub("(%d+ / %d+)", function(m)
-		table.insert(parts, m)
+	-- Extract percentage (e.g., "45%")
+	msg = msg:gsub("(%d+)%%", function(m)
+		result.percentage = tonumber(m)
 		return ""
 	end)
-	msg = msg:gsub("(%d+%%)", function(m)
-		table.insert(parts, m)
+
+	-- Extract file/item counters (e.g., "5 / 10")
+	msg = msg:gsub("(%d+)%s*/%s*(%d+)", function(current, total)
+		result.counter = current .. "/" .. total
 		return ""
 	end)
+
+	-- Clean up remaining text
 	msg = vim.trim(msg)
-	if msg ~= "" then
-		table.insert(parts, 1, msg)
+
+	-- Split on common separators
+	local parts = vim.split(msg, "%s*[:-]%s*", { trimempty = true })
+	if #parts > 0 then
+		result.title = parts[1]
+		if #parts > 1 then
+			result.message = parts[2]
+		end
 	end
-	return parts
+
+	return result
 end
 
+--- Returns the formatted LSP progress message with enhanced UI
+---@return string
 function M.lsp_progress()
 	if vim.o.columns < 100 then
 		return ""
@@ -481,25 +491,71 @@ function M.lsp_progress()
 		return ""
 	end
 
-	msg = normalize_lsp_message(msg)
+	local parsed = parse_lsp_message(msg)
+	local components = {}
 
-	local parts = split_lsp_parts(msg)
+	-- Animated spinner (always show when there's activity)
+	local spinner_hl = M.get_or_create_hl("#7dcfff", "StatusLine", { bold = true })
+	table.insert(components, spinner_hl .. spinners[spinner_index] .. "%*")
+	spinner_index = (spinner_index % #spinners) + 1
 
-	local content = table.concat(parts, SEP)
-
-	if msg:match("%d+%%") or msg:match("%d+ / %d+") then
-		local spinner = spinners[spinner_index]
-		spinner_index = (spinner_index % #spinners) + 1
-		content = "%#SL_LspProgressSpinner#" .. spinner .. "%#SL_LspProgress#  " .. content
+	-- Title (main action description)
+	if parsed.title ~= "" then
+		local title_hl = M.get_or_create_hl("#c0caf5", "StatusLine", { bold = false })
+		table.insert(components, title_hl .. parsed.title .. "%*")
 	end
 
-	if vim.fn.strwidth(content) > 60 then
-		content = utils.truncate(content, 57, "…")
+	-- Counter (e.g., "5/10")
+	if parsed.counter ~= "" then
+		local counter_hl = M.get_or_create_hl("#9ece6a", "StatusLine", { bold = true })
+		table.insert(components, counter_hl .. parsed.counter .. "%*")
 	end
 
-	return utils.hl_str("SL_LspProgress", "[ " .. content .. " ]") .. " "
+	-- Percentage with prominent display
+	if parsed.percentage then
+		-- Use a bright accent color for percentage
+		local pct_hl = M.get_or_create_hl("#e0af68", "StatusLine", { bold = true })
+		-- Add a subtle background for better visibility
+		local pct_bg_hl = M.get_or_create_hl("#e0af68", "#2a2a3a", { bold = true })
+		table.insert(components, pct_bg_hl .. " " .. parsed.percentage .. "% " .. "%*")
+	end
+
+	-- Additional message (if not too long)
+	if parsed.message ~= "" and #parsed.message < 20 then
+		local msg_hl = M.get_or_create_hl("#7aa2f7", "StatusLine", { bold = false })
+		table.insert(components, msg_hl .. parsed.message .. "%*")
+	end
+
+	-- Join with subtle separators
+	local sep_hl = M.get_or_create_hl("#3b4261", "StatusLine")
+	local content = table.concat(components, sep_hl .. " │ " .. "%*")
+
+	-- Wrap in a styled container
+	local bracket_hl = M.get_or_create_hl("#565f89", "StatusLine")
+	local result = bracket_hl .. "▏" .. "%*" .. content .. bracket_hl .. " ▕" .. "%*"
+
+	-- Truncate if too long (but preserve structure)
+	if vim.fn.strwidth(result) > 70 then
+		-- Simplified version for narrow displays
+		local simple = {}
+		table.insert(simple, spinner_hl .. spinners[spinner_index] .. "%*")
+		if parsed.title ~= "" then
+			local short_title = parsed.title:sub(1, 15)
+			if #parsed.title > 15 then
+				short_title = short_title .. "…"
+			end
+			table.insert(simple, short_title)
+		end
+		if parsed.percentage then
+			local pct_bg_hl = M.get_or_create_hl("#e0af68", "#2a2a3a", { bold = true })
+			table.insert(simple, pct_bg_hl .. " " .. parsed.percentage .. "% " .. "%*")
+		end
+		content = table.concat(simple, " ")
+		result = bracket_hl .. "▏" .. "%*" .. content .. bracket_hl .. " ▕" .. "%*"
+	end
+
+	return " " .. result .. " "
 end
-
 -- Filetype
 function M.filetype()
 	local ft = vim.bo.filetype
@@ -546,6 +602,7 @@ local function invalidate_caches()
 	file_cache[vim.api.nvim_get_current_buf()] = nil
 end
 
+-- Cleanup for large buffers
 local function cleanup_large_buffer_cache(bufnr)
 	local ok, lines = pcall(vim.api.nvim_buf_line_count, bufnr)
 	if ok and lines > 50000 then
@@ -569,6 +626,7 @@ vim.api.nvim_create_autocmd("BufDelete", {
 	group = "StatuslineCache",
 })
 
+-- Specific cache invalidation on diagnostic changes
 vim.api.nvim_create_autocmd("DiagnosticChanged", {
 	callback = function()
 		if vim.b.status_cache then

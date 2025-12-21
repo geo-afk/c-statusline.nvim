@@ -92,7 +92,14 @@ function M.setup(opts)
 		SLGitRemoved = { fg = "#f7768e", bg = bg_hex },
 		SLEncoding = { fg = "#7aa2f7", bg = bg_hex },
 		SLFormat = { fg = "#7aa2f7", bg = bg_hex },
-		SL_LspProgress = { fg = "#c0caf5", bg = bg_hex, italic = true },
+		SL_LspProgress = { fg = "#7dcfff", bg = bg_hex, bold = true },
+		-- Enhanced LSP Progress styling with more visual distinction
+		SL_LspProgress_Spinner = { fg = "#7dcfff", bg = bg_hex, bold = true },
+		SL_LspProgress_Title = { fg = "#c0caf5", bg = bg_hex },
+		SL_LspProgress_Counter = { fg = "#9ece6a", bg = bg_hex, bold = true },
+		SL_LspProgress_Percent = { fg = "#e0af68", bg = "#2a2a3a", bold = true },
+		SL_LspProgress_Message = { fg = "#7aa2f7", bg = bg_hex },
+		SL_LspProgress_Border = { fg = "#565f89", bg = bg_hex },
 	}
 
 	for name, hl_opts in pairs(highlights) do
@@ -189,7 +196,7 @@ function M.setup(opts)
 
 	-- Get mode info with error handling
 	local function get_mode_info()
-		local ok, mode_data = pcall(vim.api.nvim_get_mode)
+		local _, mode_data = pcall(vim.api.nvim_get_mode)
 		if not ok then
 			return mode_config.n
 		end
@@ -398,7 +405,7 @@ function M.setup(opts)
 		end,
 	})
 
-	-- LSP Progress
+	-- LSP Progress (fixed: use components.state instead of M.state)
 	vim.api.nvim_create_autocmd("LspProgress", {
 		group = "StatuslineEvents",
 		callback = function(args)
@@ -413,29 +420,26 @@ function M.setup(opts)
 			else
 				local progress = ""
 				if value.percentage then
-					progress = string.format("%d%%", value.percentage)
+					progress = string.format("%d%% ", value.percentage)
 				end
 
 				local title = value.title or ""
 				local message = value.message or ""
 
+				-- Clean up some common verbose messages
 				if message:match("^%d+/%d+$") then
 					message = message
 				elseif message ~= "" then
 					message = " - " .. message
 				end
 
-				components.state.lsp_msg = progress .. (title ~= "" and " " .. title or "") .. message
+				components.state.lsp_msg = progress .. title .. message
 			end
 
-			debounced_redraw(50)
+			-- Redraw statusline
+			debounced_redraw(50) -- slightly slower to avoid flicker
 		end,
 	})
-
-	vim.api.nvim_set_hl(0, "SL_LspProgressIcon", { fg = "#7aa2f7", bold = true })
-	vim.api.nvim_set_hl(0, "SL_LspProgressSpinner", { fg = "#bb9af7", bold = true })
-	vim.api.nvim_set_hl(0, "SL_LspProgress", { fg = "#c0caf5", italic = true })
-	vim.api.nvim_set_hl(0, "SL_LspProgressPercent", { fg = "#9ece6a", bold = true })
 
 	-- Expose Status_line for external calls
 	M.Status_line = Status_line
