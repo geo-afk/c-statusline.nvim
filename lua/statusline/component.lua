@@ -437,15 +437,26 @@ end
 
 -- LSP Progress
 
+-- LSP Progress
 M.state = M.state or { lsp_msg = "" }
 
 local spinners = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" }
 local spinner_index = 1
 
+-- Normalize spacing in LSP messages
+local function normalize_lsp_message(msg)
+	-- Add spaces around file counters: 20/40 -> 20 / 40
+	msg = msg:gsub("(%d+)%s*/%s*(%d+)", "%1 / %2")
+
+	-- Fix common missing spaces (Loadingworkspace -> Loading workspace)
+	msg = msg:gsub("([a-z])([A-Z])", "%1 %2")
+
+	return msg
+end
+
 --- Returns the formatted LSP progress message (with spinner)
 ---@return string
 function M.lsp_progress()
-	-- Avoid clutter on narrow windows
 	if vim.o.columns < 100 then
 		return ""
 	end
@@ -455,29 +466,21 @@ function M.lsp_progress()
 		return ""
 	end
 
+	msg = normalize_lsp_message(msg)
+
 	-- Truncate long messages
 	if vim.fn.strwidth(msg) > 60 then
 		msg = utils.truncate(msg, 57, "…")
 	end
 
 	local spinner = ""
-	local has_progress = msg:match("%d+%%")
-
-	if has_progress then
+	if msg:match("%d+%%") or msg:match("%d+ / %d+") then
 		spinner = spinners[spinner_index]
 		spinner_index = (spinner_index % #spinners) + 1
 	end
 
-	-- Modern layout: [ ⠋ · Indexing files ]
-	local parts = {}
-
-	if spinner ~= "" then
-		table.insert(parts, spinner)
-	end
-
-	table.insert(parts, msg)
-
-	local content = table.concat(parts, " · ")
+	-- Modern layout: [ ⠋ · Loading workspace · 20 / 40 ]
+	local content = spinner ~= "" and (spinner .. " · " .. msg) or msg
 
 	return utils.hl_str("SL_LspProgress", "[ " .. content .. " ]") .. " "
 end
