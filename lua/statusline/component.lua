@@ -439,47 +439,40 @@ end
 -- LSP Progress
 M.state = M.state or { lsp_msg = "" }
 
--- More visually appealing spinner frames
-local spinners = { "⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷" }
+-- Simple spinner frames
+local spinners = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" }
 local spinner_index = 1
 
--- Parse LSP message into structured components
+-- Parse LSP message into components
 local function parse_lsp_message(msg)
 	local result = {
-		title = "",
-		percentage = nil,
-		counter = "",
 		message = "",
+		counter = "",
+		percentage = "",
 	}
 
 	-- Extract percentage (e.g., "45%")
 	msg = msg:gsub("(%d+)%%", function(m)
-		result.percentage = tonumber(m)
+		result.percentage = m .. "%"
 		return ""
 	end)
 
-	-- Extract file/item counters (e.g., "5 / 10")
+	-- Extract file/item counters (e.g., "5/10" or "5 / 10")
 	msg = msg:gsub("(%d+)%s*/%s*(%d+)", function(current, total)
 		result.counter = current .. "/" .. total
 		return ""
 	end)
 
-	-- Clean up remaining text
+	-- Clean up remaining text as message
 	msg = vim.trim(msg)
-
-	-- Split on common separators
-	local parts = vim.split(msg, "%s*[:-]%s*", { trimempty = true })
-	if #parts > 0 then
-		result.title = parts[1]
-		if #parts > 1 then
-			result.message = parts[2]
-		end
+	if msg ~= "" then
+		result.message = msg
 	end
 
 	return result
 end
 
---- Returns the formatted LSP progress message with enhanced UI
+--- Returns the formatted LSP progress message
 ---@return string
 function M.lsp_progress()
 	if vim.o.columns < 100 then
@@ -492,70 +485,42 @@ function M.lsp_progress()
 	end
 
 	local parsed = parse_lsp_message(msg)
-	local components = {}
+	local parts = {}
 
-	-- Animated spinner (always show when there's activity)
+	-- Spinner
 	local spinner_hl = M.get_or_create_hl("#7dcfff", "StatusLine", { bold = true })
-	table.insert(components, spinner_hl .. spinners[spinner_index] .. "%*")
+	table.insert(parts, spinner_hl .. spinners[spinner_index] .. "%*")
 	spinner_index = (spinner_index % #spinners) + 1
 
-	-- Title (main action description)
-	if parsed.title ~= "" then
-		local title_hl = M.get_or_create_hl("#c0caf5", "StatusLine", { bold = false })
-		table.insert(components, title_hl .. parsed.title .. "%*")
+	-- Message/Title
+	if parsed.message ~= "" then
+		local msg_hl = M.get_or_create_hl("#c0caf5", "StatusLine")
+		table.insert(parts, msg_hl .. parsed.message .. "%*")
 	end
 
-	-- Counter (e.g., "5/10")
+	-- Counter (e.g., "1/2 loaded files")
 	if parsed.counter ~= "" then
 		local counter_hl = M.get_or_create_hl("#9ece6a", "StatusLine", { bold = true })
-		table.insert(components, counter_hl .. parsed.counter .. "%*")
+		table.insert(parts, counter_hl .. parsed.counter .. "%*")
 	end
 
-	-- Percentage with prominent display
-	if parsed.percentage then
-		-- Use a bright accent color for percentage
+	-- Percentage (e.g., "90%")
+	if parsed.percentage ~= "" then
 		local pct_hl = M.get_or_create_hl("#e0af68", "StatusLine", { bold = true })
-		-- Add a subtle background for better visibility
-		local pct_bg_hl = M.get_or_create_hl("#e0af68", "#2a2a3a", { bold = true })
-		table.insert(components, pct_bg_hl .. " " .. parsed.percentage .. "% " .. "%*")
+		table.insert(parts, pct_hl .. parsed.percentage .. "%*")
 	end
 
-	-- Additional message (if not too long)
-	if parsed.message ~= "" and #parsed.message < 20 then
-		local msg_hl = M.get_or_create_hl("#7aa2f7", "StatusLine", { bold = false })
-		table.insert(components, msg_hl .. parsed.message .. "%*")
+	-- Join with simple spaces
+	local content = table.concat(parts, " ")
+
+	-- Truncate if needed
+	if vim.fn.strwidth(content) > 60 then
+		content = utils.truncate(content, 57, "…")
 	end
 
-	-- Join with subtle separators
-	local sep_hl = M.get_or_create_hl("#3b4261", "StatusLine")
-	local content = table.concat(components, sep_hl .. " │ " .. "%*")
-
-	-- Wrap in a styled container
-	local bracket_hl = M.get_or_create_hl("#565f89", "StatusLine")
-	local result = bracket_hl .. "▏" .. "%*" .. content .. bracket_hl .. " ▕" .. "%*"
-
-	-- Truncate if too long (but preserve structure)
-	if vim.fn.strwidth(result) > 70 then
-		-- Simplified version for narrow displays
-		local simple = {}
-		table.insert(simple, spinner_hl .. spinners[spinner_index] .. "%*")
-		if parsed.title ~= "" then
-			local short_title = parsed.title:sub(1, 15)
-			if #parsed.title > 15 then
-				short_title = short_title .. "…"
-			end
-			table.insert(simple, short_title)
-		end
-		if parsed.percentage then
-			local pct_bg_hl = M.get_or_create_hl("#e0af68", "#2a2a3a", { bold = true })
-			table.insert(simple, pct_bg_hl .. " " .. parsed.percentage .. "% " .. "%*")
-		end
-		content = table.concat(simple, " ")
-		result = bracket_hl .. "▏" .. "%*" .. content .. bracket_hl .. " ▕" .. "%*"
-	end
-
-	return " " .. result .. " "
+	return utils.hl_str("SL_LspProgress", content) .. " "
 end
+
 -- Filetype
 function M.filetype()
 	local ft = vim.bo.filetype
