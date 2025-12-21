@@ -434,6 +434,11 @@ function M.setup(opts)
 		end,
 	})
 
+	vim.api.nvim_set_hl(0, "SL_LspProgressIcon", { fg = "#7aa2f7", bold = true }) -- blue icon
+	vim.api.nvim_set_hl(0, "SL_LspProgressSpinner", { fg = "#bb9af7", bold = true }) -- purple spinner
+	vim.api.nvim_set_hl(0, "SL_LspProgress", { fg = "#c0caf5", italic = true }) -- soft text
+	vim.api.nvim_set_hl(0, "SL_LspProgressPercent", { fg = "#9ece6a", bold = true }) -- green percentage
+
 	-- Expose Status_line for external calls
 	M.Status_line = Status_line
 end
