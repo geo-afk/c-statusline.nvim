@@ -435,78 +435,150 @@ function M.progress_bar()
 	return cache.str
 end
 
--- LSP Progress
-M.state = M.state or { lsp_msg = "" }
+-- LSP Progress State Management
+M.lsp_state = M.lsp_state or {
+	clients = {}, -- Store per-client progress
+	last_update = 0,
+}
 
-local spinners = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" }
+-- Spinner frames (Braille patterns for smooth animation)
+local SPINNER_FRAMES = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" }
 local spinner_index = 1
-local SEP = " · "
 
--- Normalize spacing inside LSP messages
-local function normalize_lsp_message(msg)
-	msg = msg:gsub("(%d+)%s*/%s*(%d+)", "%1 / %2")
-	msg = msg:gsub("([a-z])([A-Z])", "%1 %2")
-	return msg
-end
+-- Timer for spinner animation
+local spinner_timer = nil
 
--- Split message into logical parts (preserve %)
-local function split_lsp_parts(msg)
-	local parts = {}
-	local percent
-
-	-- Extract percentage FIRST and preserve it verbatim
-	msg = msg:gsub("(%d+%%)", function(m)
-		percent = m
-		return ""
-	end)
-
-	-- Extract file counters
-	msg = msg:gsub("(%d+ / %d+)", function(m)
-		table.insert(parts, m)
-		return ""
-	end)
-
-	-- Remaining text
-	msg = vim.trim(msg)
-	if msg ~= "" then
-		table.insert(parts, 1, msg)
+-- Start spinner animation
+local function start_spinner()
+	if spinner_timer then
+		return
 	end
 
-	-- Append percentage last (with % intact)
-	if percent then
-		table.insert(parts, percent)
+	spinner_timer = vim.loop.new_timer()
+	spinner_timer:start(
+		100,
+		100,
+		vim.schedule_wrap(function()
+			spinner_index = (spinner_index % #SPINNER_FRAMES) + 1
+			vim.cmd("redrawstatus")
+		end)
+	)
+end
+
+-- Stop spinner animation
+local function stop_spinner()
+	if spinner_timer then
+		spinner_timer:stop()
+		spinner_timer:close()
+		spinner_timer = nil
+	end
+end
+
+-- Format percentage consistently
+local function format_percentage(percentage)
+	if not percentage then
+		return nil
+	end
+	-- Ensure it's a number and format with %% for statusline
+	local pct = tonumber(percentage) or 0
+	return string.format("%d%%%%", math.floor(pct))
+end
+
+-- Clean and format LSP progress message
+local function format_lsp_message(title, message, percentage)
+	local parts = {}
+
+	-- Add title if present
+	if title and title ~= "" then
+		-- Trim and clean title
+		title = vim.trim(title)
+		table.insert(parts, title)
+	end
+
+	-- Add message if present and different from title
+	if message and message ~= "" then
+		message = vim.trim(message)
+		if message ~= title then
+			table.insert(parts, message)
+		end
+	end
+
+	-- Add percentage if present
+	if percentage then
+		table.insert(parts, format_percentage(percentage))
 	end
 
 	return parts
 end
 
---- Returns the formatted LSP progress message (with spinner)
----@return string
+-- Get active LSP progress messages
+local function get_active_progress()
+	local active = {}
+	local now = vim.loop.now()
+
+	-- Clean up old/stale messages (older than 30 seconds)
+	for client_id, data in pairs(M.lsp_state.clients) do
+		if now - data.timestamp > 30000 then
+			M.lsp_state.clients[client_id] = nil
+		elseif data.active then
+			table.insert(active, data)
+		end
+	end
+
+	return active
+end
+
+-- Main LSP progress component
 function M.lsp_progress()
+	-- Check window width
 	if vim.o.columns < 100 then
 		return ""
 	end
 
-	local msg = M.state.lsp_msg
-	if msg == "" then
+	local active_progress = get_active_progress()
+
+	-- No active progress
+	if #active_progress == 0 then
+		stop_spinner()
 		return ""
 	end
 
-	msg = normalize_lsp_message(msg)
+	-- Start spinner for active progress
+	start_spinner()
 
-	local parts = split_lsp_parts(msg)
+	-- Build progress message
+	local messages = {}
 
-	-- Spinner only when progress is active
-	if msg:match("%d+%%") or msg:match("%d+ / %d+") then
-		table.insert(parts, 1, spinners[spinner_index])
-		spinner_index = (spinner_index % #spinners) + 1
+	for _, progress in ipairs(active_progress) do
+		local parts = format_lsp_message(progress.title, progress.message, progress.percentage)
+
+		if #parts > 0 then
+			-- Add client name if multiple clients
+			local msg
+			if #active_progress > 1 then
+				msg = string.format("[%s] %s", progress.client_name, table.concat(parts, " · "))
+			else
+				msg = table.concat(parts, " · ")
+			end
+			table.insert(messages, msg)
+		end
 	end
 
-	local content = table.concat(parts, SEP)
+	if #messages == 0 then
+		stop_spinner()
+		return ""
+	end
 
-	-- Truncate final result
-	if vim.fn.strwidth(content) > 60 then
-		content = utils.truncate(content, 57, "…")
+	-- Combine all messages
+	local content = table.concat(messages, " | ")
+
+	-- Add spinner
+	content = SPINNER_FRAMES[spinner_index] .. " " .. content
+
+	-- Truncate if too long
+	local max_width = math.min(60, vim.o.columns / 3)
+	if vim.fn.strwidth(content) > max_width then
+		content = utils.truncate(content, max_width - 1, "…")
 	end
 
 	return utils.hl_str("SL_LspProgress", "[ " .. content .. " ]") .. " "

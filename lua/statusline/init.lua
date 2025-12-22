@@ -398,39 +398,70 @@ function M.setup(opts)
 		end,
 	})
 
-	-- LSP Progress (fixed: use components.state instead of M.state)
+	-- LSP Progress Handler (put this in the setup function)
 	vim.api.nvim_create_autocmd("LspProgress", {
 		group = "StatuslineEvents",
 		callback = function(args)
-			if not (args.data and args.data.params and args.data.params.value) then
+			local client_id = args.data and args.data.client_id
+			local params = args.data and args.data.params
+
+			if not (client_id and params) then
 				return
 			end
 
-			local value = args.data.params.value
-
-			if value.kind == "end" then
-				components.state.lsp_msg = ""
-			else
-				local progress = ""
-				if value.percentage then
-					progress = string.format("%d%% ", value.percentage)
-				end
-
-				local title = value.title or ""
-				local message = value.message or ""
-
-				-- Clean up some common verbose messages
-				if message:match("^%d+/%d+$") then
-					message = message
-				elseif message ~= "" then
-					message = " - " .. message
-				end
-
-				components.state.lsp_msg = progress .. title .. message
+			local value = params.value
+			if not value then
+				return
 			end
 
-			-- Redraw statusline
-			debounced_redraw(50) -- slightly slower to avoid flicker
+			-- Get client name
+			local client = vim.lsp.get_client_by_id(client_id)
+			local client_name = client and client.name or "LSP"
+
+			-- Update state based on progress kind
+			if value.kind == "begin" then
+				components.lsp_state.clients[client_id] = {
+					client_name = client_name,
+					title = value.title or "",
+					message = value.message or "",
+					percentage = value.percentage,
+					active = true,
+					timestamp = vim.loop.now(),
+				}
+			elseif value.kind == "report" then
+				local existing = components.lsp_state.clients[client_id]
+				if existing then
+					existing.message = value.message or existing.message
+					existing.percentage = value.percentage or existing.percentage
+					existing.timestamp = vim.loop.now()
+				end
+			elseif value.kind == "end" then
+				-- Mark as inactive but keep briefly for smooth transition
+				local existing = components.lsp_state.clients[client_id]
+				if existing then
+					existing.active = false
+					-- Remove after a short delay
+					vim.defer_fn(function()
+						components.lsp_state.clients[client_id] = nil
+						vim.cmd("redrawstatus")
+					end, 500)
+				end
+			end
+
+			-- Update statusline
+			debounced_redraw(50)
+		end,
+	})
+
+	-- Cleanup on exit
+	vim.api.nvim_create_autocmd("VimLeavePre", {
+		group = "StatuslineEvents",
+		callback = function()
+			-- Stop spinner timer
+			if components.lsp_state and components.lsp_state.spinner_timer then
+				components.lsp_state.spinner_timer:stop()
+				components.lsp_state.spinner_timer:close()
+			end
 		end,
 	})
 
