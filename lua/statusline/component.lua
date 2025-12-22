@@ -576,10 +576,10 @@ function M.lsp_progress()
 	content = SPINNER_FRAMES[spinner_index] .. " " .. content
 
 	-- Truncate if too long
-	local max_width = math.min(60, vim.o.columns / 3)
-	if vim.fn.strwidth(content) > max_width then
-		content = utils.truncate(content, max_width - 1, "…")
-	end
+	-- local max_width = math.min(60, vim.o.columns / 3)
+	-- if vim.fn.strwidth(content) > max_width then
+	-- 	content = utils.truncate(content, max_width - 1, "…")
+	-- end
 
 	return utils.hl_str("SL_LspProgress", "[ " .. content .. " ]") .. " "
 end
