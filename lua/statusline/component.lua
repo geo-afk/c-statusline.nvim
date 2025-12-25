@@ -450,20 +450,24 @@ function M.progress_bar()
 
 		local hl_fill = M.get_or_create_hl("#7aa2f7", "StatusLine")
 		local hl_empty = M.get_or_create_hl("#414868", "StatusLine")
+		local hl_cap = M.get_or_create_hl("#3b4261", "StatusLine")
 		local hl_pct = M.get_or_create_hl("#a9b1d6", "StatusLine")
 
-		-- rounded + thin bar
 		local left_cap = ""
 		local right_cap = ""
 		local fill_char = "▰"
 		local empty_char = "▱"
 
-		local bar = hl_fill
+		local bar = hl_cap
 			.. left_cap
+			.. "%*"
+			.. hl_fill
 			.. string.rep(fill_char, filled)
 			.. "%*"
 			.. hl_empty
 			.. string.rep(empty_char, width - filled)
+			.. "%*"
+			.. hl_cap
 			.. right_cap
 			.. "%*"
 
