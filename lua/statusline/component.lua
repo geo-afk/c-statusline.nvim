@@ -7,6 +7,7 @@ M._hls = {}
 M.config = {} -- Will be populated by init.lua
 
 -- Icon sets with fallbacks
+
 local icon_sets = {
 	nerd_v3 = {
 		branch = " ",
@@ -172,6 +173,38 @@ function M.file_icon()
 	return hl_str(igroup, icon)
 end
 
+-- Get relative path with smart truncation (folder../subfolder/file)
+local function get_relative_path()
+	local full_path = vim.fn.expand("%:p")
+	if full_path == "" then
+		return "✦ Empty "
+	end
+
+	-- Get path relative to cwd
+	local cwd = vim.fn.getcwd()
+	local relative = vim.fn.fnamemodify(full_path, ":~:.")
+
+	-- If file is in cwd or subdirectory
+	if not relative:match("^%.%.") and not relative:match("^/") then
+		-- Split path into components
+		local parts = {}
+		for part in relative:gmatch("[^/\\]+") do
+			table.insert(parts, part)
+		end
+
+		if #parts <= 3 then
+			-- Short path, show it all
+			return relative
+		else
+			-- Long path, show first/../last two
+			return parts[1] .. "/../" .. parts[#parts - 1] .. "/" .. parts[#parts]
+		end
+	else
+		-- File outside cwd, just show filename
+		return vim.fn.fnamemodify(full_path, ":t")
+	end
+end
+
 -- File info with size cache
 local file_cache = {}
 function M.fileinfo(opts)
@@ -179,7 +212,7 @@ function M.fileinfo(opts)
 
 	local buf = vim.api.nvim_get_current_buf()
 	if not file_cache[buf] then
-		local path = vim.fn.expand("%:t")
+		local path = get_relative_path()
 		local size = vim.fn.getfsize(vim.fn.expand("%"))
 		file_cache[buf] = { path = path, size = size }
 
@@ -193,7 +226,7 @@ function M.fileinfo(opts)
 	end
 
 	local cached = file_cache[buf]
-	local name = (cached.path == "" and "✦ Empty ") or cached.path:match("([^/\\]+)[/\\]*$")
+	local name = cached.path
 	local modified = vim.bo.modified and " ●" or ""
 	local readonly = (not vim.bo.modifiable or vim.bo.readonly) and " " or ""
 
@@ -363,12 +396,13 @@ function M.file_encoding()
 end
 
 -- File format
+
 function M.file_format()
 	local format = vim.bo.fileformat
 	local icons = {
-		unix = " ", -- LF (Unix / Linux)
-		dos = " ", -- CRLF (Windows)
-		mac = " ", -- CR (Classic Mac)
+		unix = "󰌽 ", -- LF (Unix / Linux)
+		dos = "󰍲 ", -- CRLF (Windows)
+		mac = "󰀵 ", -- CR (Classic Mac)
 	}
 
 	return hl_str("SLFormat", icons[format] or format) .. " "
@@ -385,14 +419,18 @@ function M.total_lines()
 end
 
 -- Progress bar with percentage and caching
+
 local progress_cache = {}
+
 function M.progress_bar()
 	local buf = vim.api.nvim_get_current_buf()
 	local now = vim.loop.now()
+
 	if not progress_cache[buf] then
 		progress_cache[buf] = {}
 	end
 	local cache = progress_cache[buf]
+
 	local lines = vim.api.nvim_buf_line_count(0)
 	local cur_line = vim.api.nvim_win_get_cursor(0)[1]
 	local stale = (lines > 50000) and 5000 or 1000
@@ -404,20 +442,33 @@ function M.progress_bar()
 		or cache.cur ~= cur_line
 	then
 		local percentage = math.floor((cur_line / lines) * 100)
-		local width = 10
-		local filled = math.floor((cur_line / lines) * width)
 
-		local hl_filled = M.get_or_create_hl("#7aa2f7", "StatusLine", { bold = true })
-		local hl_empty = M.get_or_create_hl("#3b4261", "StatusLine")
-		local bar = hl_filled
-			.. string.rep("█", filled)
+		-- visual tuning
+		local width = 8
+		local ratio = cur_line / lines
+		local filled = math.floor(ratio * width)
+
+		local hl_fill = M.get_or_create_hl("#7aa2f7", "StatusLine")
+		local hl_empty = M.get_or_create_hl("#414868", "StatusLine")
+		local hl_pct = M.get_or_create_hl("#a9b1d6", "StatusLine")
+
+		-- rounded + thin bar
+		local left_cap = ""
+		local right_cap = ""
+		local fill_char = "▰"
+		local empty_char = "▱"
+
+		local bar = hl_fill
+			.. left_cap
+			.. string.rep(fill_char, filled)
 			.. "%*"
 			.. hl_empty
-			.. string.rep("░", width - filled)
+			.. string.rep(empty_char, width - filled)
+			.. right_cap
 			.. "%*"
 
-		local pct_hl = M.get_or_create_hl("#7aa2f7", "StatusLine", { bold = true })
-		cache.str = bar .. " " .. pct_hl .. percentage .. "%% %*"
+		cache.str = bar .. " " .. hl_pct .. percentage .. "%%" .. "%*"
+
 		cache.percentage = percentage
 		cache.lines = lines
 		cache.cur = cur_line
@@ -479,36 +530,8 @@ local function format_percentage(percentage)
 	if not percentage then
 		return nil
 	end
-	-- Ensure it's a number and format with %% for statusline
 	local pct = tonumber(percentage) or 0
 	return string.format("%d%%%%", math.floor(pct))
-end
-
--- Clean and format LSP progress message
-local function format_lsp_message(title, message, percentage)
-	local parts = {}
-
-	-- Add title if present
-	if title and title ~= "" then
-		-- Trim and clean title
-		title = vim.trim(title)
-		table.insert(parts, title)
-	end
-
-	-- Add message if present and different from title
-	if message and message ~= "" then
-		message = vim.trim(message)
-		if message ~= title then
-			table.insert(parts, message)
-		end
-	end
-
-	-- Add percentage if present
-	if percentage then
-		table.insert(parts, format_percentage(percentage))
-	end
-
-	return parts
 end
 
 -- Get active LSP progress messages
@@ -528,7 +551,7 @@ local function get_active_progress()
 	return active
 end
 
--- Main LSP progress component
+-- Main LSP progress component (simplified format)
 function M.lsp_progress()
 	-- Check window width
 	if vim.o.columns < 100 then
@@ -546,22 +569,22 @@ function M.lsp_progress()
 	-- Start spinner for active progress
 	start_spinner()
 
-	-- Build progress message
+	-- Build simplified progress message: "spinner Loading (50%)"
 	local messages = {}
 
 	for _, progress in ipairs(active_progress) do
-		local parts = format_lsp_message(progress.title, progress.message, progress.percentage)
+		local parts = {}
 
-		if #parts > 0 then
-			-- Add client name if multiple clients
-			local msg
-			if #active_progress > 1 then
-				msg = string.format("[%s] %s", progress.client_name, table.concat(parts, " · "))
-			else
-				msg = table.concat(parts, " · ")
-			end
-			table.insert(messages, msg)
+		-- Use title if available, otherwise use "Loading"
+		local label = progress.title and progress.title ~= "" and progress.title or "Loading"
+		table.insert(parts, label)
+
+		-- Add percentage if available
+		if progress.percentage then
+			table.insert(parts, "(" .. format_percentage(progress.percentage) .. ")")
 		end
+
+		table.insert(messages, table.concat(parts, " "))
 	end
 
 	if #messages == 0 then
@@ -569,19 +592,10 @@ function M.lsp_progress()
 		return ""
 	end
 
-	-- Combine all messages
-	local content = table.concat(messages, " | ")
+	-- Combine all messages with spinner
+	local content = SPINNER_FRAMES[spinner_index] .. " " .. table.concat(messages, " | ")
 
-	-- Add spinner
-	content = SPINNER_FRAMES[spinner_index] .. " " .. content
-
-	-- Truncate if too long
-	-- local max_width = math.min(60, vim.o.columns / 3)
-	-- if vim.fn.strwidth(content) > max_width then
-	-- 	content = utils.truncate(content, max_width - 1, "…")
-	-- end
-
-	return utils.hl_str("SL_LspProgress", "[ " .. content .. " ]") .. " "
+	return utils.hl_str("SL_LspProgress", content) .. " "
 end
 
 -- Filetype
