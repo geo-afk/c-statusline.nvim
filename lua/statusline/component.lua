@@ -676,33 +676,38 @@ function M.dev_server_status()
 	end
 
 	local parts = {}
-	local icon_running = " " -- nf-oct-sync
+
+	local icon_running = "󰐌 " -- nf-md-play
 	local icon_stopped = "󰓛 " -- nf-md-stop
-	local icon_error = "󰅙 " -- nf-md-alert_circle_outline
+	local icon_error = "󰅚 " -- nf-md-alert_circle
 
 	for _, server in ipairs(servers) do
 		local status = server.status
 		local name = server.name
 
-		local icon, hl_group
+		local icon, fg_color, bg_color
 		if status:match("running") then
 			icon = icon_running
-			hl_group = "SLGitAdded" -- green
+			fg_color = "#1a1b26" -- dark text
+			-- Different backgrounds for visible/hidden when running
+			if status:match("visible") then
+				bg_color = "#9ece6a" -- bright green for visible
+			else
+				bg_color = "#4a5a3a" -- darker green for hidden
+			end
 		elseif status:match("exited") then
 			icon = icon_error
-			hl_group = "DiagnosticError"
+			fg_color = "#1a1b26"
+			bg_color = "#f7768e" -- red for error
 		else
 			icon = icon_stopped
-			hl_group = "SLDim"
+			fg_color = "#c0caf5"
+			bg_color = "#3b4261" -- dimmed background
 		end
 
-		if status:match("visible") then
-			status = "visible"
-		elseif status:match("hidden") then
-			status = "hidden"
-		end
-
-		table.insert(parts, hl_str(hl_group, icon .. name .. ":" .. status))
+		-- Create dynamic highlight with custom background
+		local hl = M.get_or_create_hl(fg_color, bg_color, { bold = true })
+		table.insert(parts, hl .. " " .. icon .. name .. " %*")
 	end
 
 	if #parts == 0 then
