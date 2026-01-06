@@ -26,6 +26,7 @@ local defaults = {
 		file_info = { enabled = true, show_size = true },
 		progress = { enabled = true, style = "bar" },
 		lsp_progress = { enabled = true, min_width = 100 },
+		dev_server = { enabled = true },
 	},
 
 	refresh_rate = 100, -- ms for debounce
@@ -303,6 +304,14 @@ function M.setup(opts)
 			if lsp_prog ~= "" then
 				table.insert(right, lsp_prog)
 				table.insert(right, components.separator("dot")) -- or "angle_right"
+			end
+		end
+
+		if opts.components.dev_server and opts.components.dev_server.enabled and width >= 100 then
+			local dev_status = components.dev_server_status()
+			if dev_status ~= "" then
+				table.insert(right, dev_status)
+				table.insert(right, components.separator("dot"))
 			end
 		end
 

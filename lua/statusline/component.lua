@@ -453,10 +453,30 @@ function M.progress_bar()
 		local hl_cap = M.get_or_create_hl("#3b4261", "StatusLine")
 		local hl_pct = M.get_or_create_hl("#a9b1d6", "StatusLine")
 
-		local left_cap = ""
-		local right_cap = ""
-		local fill_char = "▰"
-		local empty_char = "▱"
+		local left_cap = "▌"
+		local right_cap = "▐"
+		local fill_char = "■"
+		local empty_char = "□"
+
+		-- local left_cap   = "❮"
+		-- local right_cap  = "❯"
+		-- local fill_char  = "■"
+		-- local empty_char = "□"
+
+		-- local left_cap   = "⟦"
+		-- local right_cap  = "⟧"
+		-- local fill_char  = "▣"
+		-- local empty_char = "▢"
+
+		-- local left_cap   = "‹"
+		-- local right_cap  = "›"
+		-- local fill_char  = "▸"
+		-- local empty_char = "▹"
+
+		-- local left_cap = ""
+		-- local right_cap = ""
+		-- local fill_char = "▰"
+		-- local empty_char = "▱"
 
 		local bar = hl_cap
 			.. left_cap
@@ -640,6 +660,56 @@ function M.search_count()
 	end
 
 	return hl_str("SLMatches", string.format(" [%d/%d] ", result.current, result.total))
+end
+
+-- Dev Server status (requires geo-afk/dev-server.nvim)
+function M.dev_server_status()
+	-- Safely check if dev-server is available
+	local ok, devserver = pcall(require, "dev-server")
+	if not ok or not devserver or not devserver.list then
+		return ""
+	end
+
+	local servers = devserver.list()
+	if #servers == 0 then
+		return ""
+	end
+
+	local parts = {}
+	local icon_running = " " -- nf-oct-sync
+	local icon_stopped = "󰓛 " -- nf-md-stop
+	local icon_error = "󰅙 " -- nf-md-alert_circle_outline
+
+	for _, server in ipairs(servers) do
+		local status = server.status
+		local name = server.name
+
+		local icon, hl_group
+		if status:match("running") then
+			icon = icon_running
+			hl_group = "SLGitAdded" -- green
+		elseif status:match("exited") then
+			icon = icon_error
+			hl_group = "DiagnosticError"
+		else
+			icon = icon_stopped
+			hl_group = "SLDim"
+		end
+
+		if status:match("visible") then
+			status = "visible"
+		elseif status:match("hidden") then
+			status = "hidden"
+		end
+
+		table.insert(parts, hl_str(hl_group, icon .. name .. ":" .. status))
+	end
+
+	if #parts == 0 then
+		return ""
+	end
+
+	return table.concat(parts, " ") .. " "
 end
 
 -- Enhanced cache invalidation
