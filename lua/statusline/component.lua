@@ -662,52 +662,77 @@ function M.search_count()
 	return hl_str("SLMatches", string.format(" [%d/%d] ", result.current, result.total))
 end
 
--- Dev Server status (requires geo-afk/dev-server.nvim)
 function M.dev_server_status()
-	-- Safely check if dev-server is available
 	local ok, devserver = pcall(require, "dev-server")
-	if not ok or not devserver or not devserver.list then
+	if not ok or not devserver then
 		return ""
 	end
 
-	local servers = devserver.list()
-	if #servers == 0 then
+	-- Get current buffer
+	local bufnr = vim.api.nvim_get_current_buf()
+
+	-- Check if we're actually in a configured project
+	local in_project, available_servers = devserver.is_in_project(bufnr)
+	if not in_project or not available_servers or #available_servers == 0 then
+		return ""
+	end
+
+	-- Optional: early exit if no servers are even defined for this project
+	local any_running = false
+	for _, name in ipairs(available_servers) do
+		local server = devserver.servers[name] -- assuming internal table like in your first snippet
+		if server and devserver._is_job_running(server.job_id) then
+			any_running = true
+			break
+		end
+	end
+	if not any_running then
 		return ""
 	end
 
 	local parts = {}
-
 	local icon_running = "󰐌 " -- nf-md-play
-	local icon_stopped = "󰓛 " -- nf-md-stop
+	local icon_hidden = "󰈸 " -- nf-md-eye-off or similar
 	local icon_error = "󰅚 " -- nf-md-alert_circle
+	local icon_stopped = "󰓛 " -- nf-md-stop
 
-	for _, server in ipairs(servers) do
-		local status = server.status
-		local name = server.name
-
-		local icon, fg_color, bg_color
-		if status:match("running") then
-			icon = icon_running
-			fg_color = "#1a1b26" -- dark text
-			-- Different backgrounds for visible/hidden when running
-			if status:match("visible") then
-				bg_color = "#9ece6a" -- bright green for visible
-			else
-				bg_color = "#4a5a3a" -- darker green for hidden
-			end
-		elseif status:match("exited") then
-			icon = icon_error
-			fg_color = "#1a1b26"
-			bg_color = "#f7768e" -- red for error
-		else
-			icon = icon_stopped
-			fg_color = "#c0caf5"
-			bg_color = "#3b4261" -- dimmed background
+	-- Only show servers that belong to this project
+	for _, name in ipairs(available_servers) do
+		local server = devserver.servers[name]
+		if not server then
+			goto continue
 		end
 
-		-- Create dynamic highlight with custom background
+		local running = devserver._is_job_running(server.job_id)
+		local visible = server.is_visible == true
+
+		local icon, fg_color, bg_color
+
+		if running then
+			if visible then
+				icon = icon_running
+				fg_color = "#1a1b26" -- dark text
+				bg_color = "#9ece6a" -- bright green – visible & running
+			else
+				icon = icon_hidden
+				fg_color = "#c0caf5" -- lighter text
+				bg_color = "#4a5a3a" -- darker/muted green – running but hidden
+			end
+		elseif server.status == "exited" or server.status == "failed" then
+			icon = icon_error
+			fg_color = "#1a1b26"
+			bg_color = "#f7768e" -- red
+		else
+			-- stopped / starting / other
+			icon = icon_stopped
+			fg_color = "#c0caf5"
+			bg_color = "#3b4261" -- dimmed
+		end
+
 		local hl = M.get_or_create_hl(fg_color, bg_color, { bold = true })
-		table.insert(parts, hl .. " " .. icon .. name .. " %*")
+		table.insert(parts, hl .. icon .. name .. "%*")
+
+		::continue::
 	end
 
 	if #parts == 0 then
