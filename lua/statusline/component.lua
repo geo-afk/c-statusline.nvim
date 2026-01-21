@@ -711,6 +711,8 @@ function M.dev_server_status()
 		return ""
 	end
 
+	vim.print(table.concat(parts, " "))
+
 	return table.concat(parts, " ")
 end
 
