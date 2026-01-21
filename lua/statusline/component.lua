@@ -680,7 +680,8 @@ function M.dev_server_status()
 
 	for _, name in ipairs(servers) do
 		-- Use ONLY the public API
-		local status = devserver.get_statusline(name, bufnr)
+		-- local status = devserver.get_statusline(name, bufnr)
+		local status = devserver.get_statusline()
 		vim.print("status")
 		vim.print(status)
 		if status ~= "" then
