@@ -682,8 +682,6 @@ function M.dev_server_status()
 		-- Use ONLY the public API
 		-- local status = devserver.get_statusline(name, bufnr)
 		local status = devserver.get_statusline()
-		vim.print("status")
-		vim.print(status)
 		if status ~= "" then
 			-- status looks like: " ● server-name" or " ○ server-name"
 			local icon = status:match("[●○]")
