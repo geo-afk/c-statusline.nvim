@@ -664,6 +664,8 @@ end
 
 function M.dev_server_status()
 	local ok, devserver = pcall(require, "dev-server")
+	vim.print(ok)
+	vim.print(devserver)
 	if not ok or not devserver then
 		return ""
 	end
