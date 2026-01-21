@@ -681,6 +681,8 @@ function M.dev_server_status()
 	for _, name in ipairs(servers) do
 		-- Use ONLY the public API
 		local status = devserver.get_statusline(name, bufnr)
+		vim.print("status")
+		vim.print(status)
 		if status ~= "" then
 			-- status looks like: " ● server-name" or " ○ server-name"
 			local icon = status:match("[●○]")
@@ -706,9 +708,6 @@ function M.dev_server_status()
 
 		::continue::
 	end
-
-	vim.print("Parts")
-	vim.print(#parts)
 
 	if #parts == 0 then
 		return ""
