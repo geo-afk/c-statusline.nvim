@@ -676,6 +676,10 @@ function M.dev_server_status()
 		return ""
 	end
 
+	vim.print("Pasted...")
+	vim.print(is_in_project)
+	vim.print(servers)
+
 	local parts = {}
 
 	for _, name in ipairs(servers) do
