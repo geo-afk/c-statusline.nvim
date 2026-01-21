@@ -668,69 +668,41 @@ function M.dev_server_status()
 		return ""
 	end
 
-	-- Get current buffer
 	local bufnr = vim.api.nvim_get_current_buf()
 
-	-- Check if we're actually in a configured project
-	local in_project, available_servers = devserver.is_in_project(bufnr)
-	if not in_project or not available_servers or #available_servers == 0 then
-		return ""
-	end
-
-	-- Optional: early exit if no servers are even defined for this project
-	local any_running = false
-	for _, name in ipairs(available_servers) do
-		local server = devserver.servers[name] -- assuming internal table like in your first snippet
-		if server and devserver._is_job_running(server.job_id) then
-			any_running = true
-			break
-		end
-	end
-	if not any_running then
+	-- Are we in a dev-server project?
+	local in_project, servers = devserver.is_in_project(bufnr)
+	if not in_project or not servers or #servers == 0 then
 		return ""
 	end
 
 	local parts = {}
-	local icon_running = "󰐌 " -- nf-md-play
-	local icon_hidden = "󰈸 " -- nf-md-eye-off or similar
-	local icon_error = "󰅚 " -- nf-md-alert_circle
-	local icon_stopped = "󰓛 " -- nf-md-stop
 
-	-- Only show servers that belong to this project
-	for _, name in ipairs(available_servers) do
-		local server = devserver.servers[name]
-		if not server then
-			goto continue
-		end
+	for _, name in ipairs(servers) do
+		-- Use ONLY the public API
+		local status = devserver.get_statusline(name, bufnr)
+		if status ~= "" then
+			-- status looks like: " ● server-name" or " ○ server-name"
+			local icon = status:match("[●○]")
+			local text = status:gsub("^%s*[●○]%s*", "")
 
-		local running = devserver._is_job_running(server.job_id)
-		local visible = server.is_visible == true
+			local fg, bg
 
-		local icon, fg_color, bg_color
-
-		if running then
-			if visible then
-				icon = icon_running
-				fg_color = "#1a1b26" -- dark text
-				bg_color = "#9ece6a" -- bright green – visible & running
+			if icon == "●" then
+				-- running & visible
+				fg = "#1a1b26"
+				bg = "#9ece6a"
+			elseif icon == "○" then
+				-- running but hidden
+				fg = "#c0caf5"
+				bg = "#4a5a3a"
 			else
-				icon = icon_hidden
-				fg_color = "#c0caf5" -- lighter text
-				bg_color = "#4a5a3a" -- darker/muted green – running but hidden
+				goto continue
 			end
-		elseif server.status == "exited" or server.status == "failed" then
-			icon = icon_error
-			fg_color = "#1a1b26"
-			bg_color = "#f7768e" -- red
-		else
-			-- stopped / starting / other
-			icon = icon_stopped
-			fg_color = "#c0caf5"
-			bg_color = "#3b4261" -- dimmed
-		end
 
-		local hl = M.get_or_create_hl(fg_color, bg_color, { bold = true })
-		table.insert(parts, hl .. icon .. name .. "%*")
+			local hl = M.get_or_create_hl(fg, bg, { bold = true })
+			table.insert(parts, hl .. " " .. icon .. " " .. text .. " %*")
+		end
 
 		::continue::
 	end
@@ -739,7 +711,7 @@ function M.dev_server_status()
 		return ""
 	end
 
-	return table.concat(parts, " ") .. " "
+	return table.concat(parts, " ")
 end
 
 -- Enhanced cache invalidation
