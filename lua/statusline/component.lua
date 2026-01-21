@@ -707,6 +707,9 @@ function M.dev_server_status()
 		::continue::
 	end
 
+	vim.print("Parts")
+	vim.print(#parts)
+
 	if #parts == 0 then
 		return ""
 	end
