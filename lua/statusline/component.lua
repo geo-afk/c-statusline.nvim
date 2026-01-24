@@ -401,8 +401,8 @@ function M.file_format()
 	local format = vim.bo.fileformat
 	local icons = {
 		unix = "󰌽 ", -- LF (Unix / Linux)
-		dos = "󰲲 ", -- CRLF (Windows)
-		mac = "󰀵 ", -- CR (Classic Mac)
+		dos  = " ", -- CRLF (Windows)
+		mac  = "󰀵 ", -- CR (Classic Mac)
 	}
 
 	return hl_str("SLFormat", icons[format] or format) .. " "
