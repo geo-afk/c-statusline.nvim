@@ -74,7 +74,7 @@ function M.get_or_create_hl(fg, bg, opts)
 	bg = bg or "StatusLine"
 	fg = fg or "#ffffff"
 
-	-- Create cache key (fixed to handle booleans as strings)
+	-- Create cache key
 	local bold_str = opts.bold and "bold" or ""
 	local italic_str = opts.italic and "italic" or ""
 	local key = table.concat({ tostring(fg), tostring(bg), bold_str, italic_str }, "_")
@@ -205,17 +205,25 @@ local function get_relative_path()
 	end
 end
 
--- File info with size cache
+-- File info with size cache (optimized with buffer-local caching)
 local file_cache = {}
 function M.fileinfo(opts)
 	opts = opts or { add_icon = true, show_size = true }
 
 	local buf = vim.api.nvim_get_current_buf()
-	if not file_cache[buf] then
+
+	-- Use buffer-local cache with timestamp validation
+	if not file_cache[buf] or not file_cache[buf].valid then
 		local path = get_relative_path()
 		local size = vim.fn.getfsize(vim.fn.expand("%"))
-		file_cache[buf] = { path = path, size = size }
+		file_cache[buf] = {
+			path = path,
+			size = size,
+			valid = true,
+			timestamp = vim.loop.now(),
+		}
 
+		-- Invalidate cache on buffer leave
 		vim.api.nvim_create_autocmd("BufLeave", {
 			buffer = buf,
 			once = true,
@@ -251,6 +259,7 @@ function M.fileinfo(opts)
 		.. hl_str("SLDim", size_str)
 end
 
+-- Git branch with caching
 function M.git_branch()
 	local ok, branch = pcall(function()
 		return vim.b.gitsigns_head
@@ -293,7 +302,7 @@ M.git_status = function()
 	return stats
 end
 
--- Prebind icons once
+-- Prebind icons once (performance optimization)
 local DIAG_ICONS = {
 	error = M.get_icon("error"),
 	warn = M.get_icon("warn"),
@@ -301,16 +310,7 @@ local DIAG_ICONS = {
 	hint = M.get_icon("hint"),
 }
 
--- Invalidate diagnostics cache on change
-vim.api.nvim_create_autocmd("DiagnosticChanged", {
-	callback = function(args)
-		local b = vim.b[args.buf]
-		if b and b.status_cache then
-			b.status_cache.diagnostics = nil
-		end
-	end,
-})
-
+-- Diagnostics with optimized caching
 function M.diagnostics()
 	-- Hard guards
 	if not vim.diagnostic or not vim.api.nvim_buf_is_valid(0) then
@@ -323,17 +323,17 @@ function M.diagnostics()
 	local cache = b.status_cache.diagnostics
 	local now = vim.uv.now()
 
-	-- Adaptive staleness (kept as safety net)
+	-- Adaptive staleness based on buffer size
 	local lines = vim.api.nvim_buf_line_count(0)
 	local stale = math.min(20000, 5000 + lines * 2)
 
-	if cache and (now - cache.timestamp) <= stale then
+	if cache and cache.valid and (now - cache.timestamp) <= stale then
 		return cache.str or ""
 	end
 
 	local diagnostics = vim.diagnostic.get(0)
 	if #diagnostics == 0 then
-		cache = { str = "", timestamp = now, counts = nil }
+		cache = { str = "", timestamp = now, counts = nil, valid = true }
 		b.status_cache.diagnostics = cache
 		return ""
 	end
@@ -380,6 +380,7 @@ function M.diagnostics()
 		str = str,
 		timestamp = now,
 		counts = counts,
+		valid = true,
 	}
 
 	b.status_cache.diagnostics = cache
@@ -395,13 +396,12 @@ function M.file_encoding()
 	return hl_str("SLEncoding", enc:upper()) .. " "
 end
 
--- File format
-
+-- File format with icons
 function M.file_format()
 	local format = vim.bo.fileformat
 	local icons = {
 		unix = "󰌽 ", -- LF (Unix / Linux)
-		dos = "󰍲 ", -- CRLF (Windows)
+		dos = "󰲲 ", -- CRLF (Windows)
 		mac = "󰀵 ", -- CR (Classic Mac)
 	}
 
@@ -419,7 +419,6 @@ function M.total_lines()
 end
 
 -- Progress bar with percentage and caching
-
 local progress_cache = {}
 
 function M.progress_bar()
@@ -437,13 +436,14 @@ function M.progress_bar()
 
 	if
 		not cache.percentage
+		or not cache.valid
 		or (now - (cache.timestamp or 0)) > stale
 		or cache.lines ~= lines
 		or cache.cur ~= cur_line
 	then
 		local percentage = math.floor((cur_line / lines) * 100)
 
-		-- visual tuning
+		-- Visual tuning
 		local width = 8
 		local ratio = cur_line / lines
 		local filled = math.floor(ratio * width)
@@ -455,28 +455,8 @@ function M.progress_bar()
 
 		local left_cap = "▌"
 		local right_cap = "▐"
-		local fill_char = "■"
-		local empty_char = "□"
-
-		-- local left_cap   = "❮"
-		-- local right_cap  = "❯"
-		-- local fill_char  = "■"
-		-- local empty_char = "□"
-
-		-- local left_cap   = "⟦"
-		-- local right_cap  = "⟧"
-		-- local fill_char  = "▣"
-		-- local empty_char = "▢"
-
-		-- local left_cap   = "‹"
-		-- local right_cap  = "›"
-		-- local fill_char  = "▸"
-		-- local empty_char = "▹"
-
-		-- local left_cap = ""
-		-- local right_cap = ""
-		-- local fill_char = "▰"
-		-- local empty_char = "▱"
+		local fill_char = "▪"
+		local empty_char = "▫"
 
 		local bar = hl_cap
 			.. left_cap
@@ -492,12 +472,13 @@ function M.progress_bar()
 			.. "%*"
 
 		cache.str = bar .. " " .. hl_pct .. percentage .. "%%" .. "%*"
-
 		cache.percentage = percentage
 		cache.lines = lines
 		cache.cur = cur_line
 		cache.timestamp = now
+		cache.valid = true
 
+		-- Invalidate cache on buffer leave
 		vim.api.nvim_create_autocmd("BufLeave", {
 			buffer = buf,
 			once = true,
@@ -510,31 +491,32 @@ function M.progress_bar()
 	return cache.str
 end
 
--- LSP Progress State Management
-M.lsp_state = M.lsp_state or {
-	clients = {}, -- Store per-client progress
-	last_update = 0,
-}
+-- LSP Progress State Management (event-driven, no continuous timer)
+M.lsp_state = M.lsp_state
+	or {
+		clients = {}, -- Store per-client progress
+		spinner_index = 1,
+		spinner_active = false,
+		spinner_timer = nil,
+	}
 
 -- Spinner frames (Braille patterns for smooth animation)
 local SPINNER_FRAMES = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" }
-local spinner_index = 1
 
--- Timer for spinner animation
-local spinner_timer = nil
-
--- Start spinner animation
+-- Start spinner animation (only when LSP is active)
 local function start_spinner()
-	if spinner_timer then
-		return
+	if M.lsp_state.spinner_timer then
+		return -- Already running
 	end
 
-	spinner_timer = vim.loop.new_timer()
-	spinner_timer:start(
+	M.lsp_state.spinner_active = true
+	M.lsp_state.spinner_timer = vim.loop.new_timer()
+	M.lsp_state.spinner_timer:start(
 		100,
 		100,
 		vim.schedule_wrap(function()
-			spinner_index = (spinner_index % #SPINNER_FRAMES) + 1
+			M.lsp_state.spinner_index = (M.lsp_state.spinner_index % #SPINNER_FRAMES) + 1
+			-- Trigger statusline update via the main event system
 			vim.cmd("redrawstatus")
 		end)
 	)
@@ -542,11 +524,12 @@ end
 
 -- Stop spinner animation
 local function stop_spinner()
-	if spinner_timer then
-		spinner_timer:stop()
-		spinner_timer:close()
-		spinner_timer = nil
+	if M.lsp_state.spinner_timer then
+		M.lsp_state.spinner_timer:stop()
+		M.lsp_state.spinner_timer:close()
+		M.lsp_state.spinner_timer = nil
 	end
+	M.lsp_state.spinner_active = false
 end
 
 -- Format percentage consistently
@@ -575,7 +558,7 @@ local function get_active_progress()
 	return active
 end
 
--- Main LSP progress component (simplified format)
+-- Main LSP progress component (event-driven, no polling)
 function M.lsp_progress()
 	-- Check window width
 	if vim.o.columns < 100 then
@@ -584,13 +567,13 @@ function M.lsp_progress()
 
 	local active_progress = get_active_progress()
 
-	-- No active progress
+	-- No active progress - stop spinner
 	if #active_progress == 0 then
 		stop_spinner()
 		return ""
 	end
 
-	-- Start spinner for active progress
+	-- Start spinner only when we have active progress
 	start_spinner()
 
 	-- Build simplified progress message: "spinner Loading (50%)"
@@ -617,7 +600,8 @@ function M.lsp_progress()
 	end
 
 	-- Combine all messages with spinner
-	local content = SPINNER_FRAMES[spinner_index] .. " " .. table.concat(messages, " | ")
+	local spinner_frame = SPINNER_FRAMES[M.lsp_state.spinner_index]
+	local content = spinner_frame .. " " .. table.concat(messages, " | ")
 
 	return utils.hl_str("SL_LspProgress", content) .. " "
 end
@@ -662,6 +646,7 @@ function M.search_count()
 	return hl_str("SLMatches", string.format(" [%d/%d] ", result.current, result.total))
 end
 
+-- Dev server status (optimized)
 function M.dev_server_status()
 	local ok, devserver = pcall(require, "dev-server")
 	if not ok or not devserver then
@@ -679,8 +664,6 @@ function M.dev_server_status()
 	local parts = {}
 
 	for _, name in ipairs(servers) do
-		-- Use ONLY the public API
-		-- local status = devserver.get_statusline(name, bufnr)
 		local status = devserver.get_statusline()
 		if status ~= "" then
 			-- status looks like: " ● server-name" or " ○ server-name"
@@ -712,49 +695,45 @@ function M.dev_server_status()
 		return ""
 	end
 
-	vim.print(table.concat(parts, " "))
-
 	return table.concat(parts, " ")
 end
 
--- Enhanced cache invalidation
-local function invalidate_caches()
-	vim.b.status_cache = nil
-	file_cache[vim.api.nvim_get_current_buf()] = nil
-end
+-- Cache invalidation on specific events (called from init.lua)
+vim.api.nvim_create_augroup("StatuslineComponentCache", { clear = true })
 
--- Cleanup for large buffers
-local function cleanup_large_buffer_cache(bufnr)
-	local ok, lines = pcall(vim.api.nvim_buf_line_count, bufnr)
-	if ok and lines > 50000 then
-		progress_cache[bufnr] = nil
-		file_cache[bufnr] = nil
-	end
-end
-
--- Setup cache management
-vim.api.nvim_create_augroup("StatuslineCache", { clear = true })
-
-vim.api.nvim_create_autocmd({ "BufEnter", "FileType", "BufWritePost" }, {
-	callback = invalidate_caches,
-	group = "StatuslineCache",
-})
-
-vim.api.nvim_create_autocmd("BufDelete", {
-	callback = function(args)
-		cleanup_large_buffer_cache(args.buf)
-	end,
-	group = "StatuslineCache",
-})
-
--- Specific cache invalidation on diagnostic changes
+-- Invalidate diagnostics cache on change
 vim.api.nvim_create_autocmd("DiagnosticChanged", {
-	callback = function()
-		if vim.b.status_cache then
-			vim.b.status_cache.diagnostics = nil
+	group = "StatuslineComponentCache",
+	callback = function(args)
+		local b = vim.b[args.buf]
+		if b and b.status_cache and b.status_cache.diagnostics then
+			b.status_cache.diagnostics.valid = false
 		end
 	end,
-	group = "StatuslineCache",
+})
+
+-- Invalidate file cache on write
+vim.api.nvim_create_autocmd("BufWritePost", {
+	group = "StatuslineComponentCache",
+	callback = function(args)
+		if file_cache[args.buf] then
+			file_cache[args.buf].valid = false
+		end
+	end,
+})
+
+-- Cleanup large buffer caches
+vim.api.nvim_create_autocmd("BufDelete", {
+	group = "StatuslineComponentCache",
+	callback = function(args)
+		local bufnr = args.buf
+		file_cache[bufnr] = nil
+		progress_cache[bufnr] = nil
+
+		if vim.b[bufnr].status_cache then
+			vim.b[bufnr].status_cache = nil
+		end
+	end,
 })
 
 return M

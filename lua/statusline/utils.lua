@@ -77,7 +77,8 @@ function M.truncate(str, max_width, ellipsis)
 	local truncated = ""
 	local width = 0
 
-	for char in str:gmatch(".") do
+	-- Use grapheme iterator for proper unicode handling
+	for char in vim.fn.split(str, "\\zs") do
 		local char_width = vim.fn.strwidth(char)
 		if width + char_width + vim.fn.strwidth(ellipsis) > max_width then
 			break
@@ -108,6 +109,7 @@ end
 ---@param bufnr integer|nil Buffer number (0 for current)
 ---@return boolean True if valid and loaded
 function M.is_valid_buffer(bufnr)
+	bufnr = bufnr or 0
 	return bufnr and vim.api.nvim_buf_is_valid(bufnr) and vim.api.nvim_buf_is_loaded(bufnr)
 end
 
@@ -145,6 +147,7 @@ function M.get_hl_colors(name)
 end
 
 --- Create a debounced version of a function
+--- Delays execution until after wait milliseconds have elapsed since the last call
 ---@param fn function Function to debounce
 ---@param delay integer Delay in milliseconds
 ---@return function Debounced function
@@ -163,18 +166,177 @@ function M.debounce(fn, delay)
 end
 
 --- Create a throttled version of a function
+--- Ensures function is called at most once per delay period
 ---@param fn function Function to throttle
 ---@param delay integer Minimum delay between calls in milliseconds
 ---@return function Throttled function
 function M.throttle(fn, delay)
 	local last_call = 0
+	local pending_timer = nil
+
 	return function(...)
 		local now = vim.loop.now()
+		local args = { ... }
+
+		-- If enough time has passed, call immediately
 		if now - last_call >= delay then
 			last_call = now
 			fn(...)
+		else
+			-- Otherwise schedule for later (trailing edge)
+			if pending_timer then
+				vim.fn.timer_stop(pending_timer)
+			end
+
+			local remaining = delay - (now - last_call)
+			pending_timer = vim.fn.timer_start(remaining, function()
+				last_call = vim.loop.now()
+				fn(unpack(args))
+				pending_timer = nil
+			end)
 		end
 	end
+end
+
+--- Memoize a function (cache results based on arguments)
+--- Useful for expensive computations with repeated calls
+---@param fn function Function to memoize
+---@param key_fn? function Optional function to generate cache key from arguments
+---@return function Memoized function
+function M.memoize(fn, key_fn)
+	local cache = {}
+
+	key_fn = key_fn or function(...)
+		return table.concat({ ... }, "_")
+	end
+
+	return function(...)
+		local key = key_fn(...)
+
+		if cache[key] == nil then
+			cache[key] = fn(...)
+		end
+
+		return cache[key]
+	end
+end
+
+--- Deep clone a table
+---@param t table Table to clone
+---@return table Cloned table
+function M.deep_clone(t)
+	if type(t) ~= "table" then
+		return t
+	end
+
+	local clone = {}
+	for k, v in pairs(t) do
+		if type(v) == "table" then
+			clone[k] = M.deep_clone(v)
+		else
+			clone[k] = v
+		end
+	end
+
+	return clone
+end
+
+--- Check if a table is empty
+---@param t table Table to check
+---@return boolean True if table is empty
+function M.is_empty(t)
+	return next(t) == nil
+end
+
+--- Get table length (works for non-sequential tables)
+---@param t table Table to measure
+---@return integer Count of elements
+function M.table_len(t)
+	local count = 0
+	for _ in pairs(t) do
+		count = count + 1
+	end
+	return count
+end
+
+--- Safe string formatting (returns empty string on error)
+---@param fmt string Format string
+---@param ... any Format arguments
+---@return string Formatted string or empty string on error
+function M.safe_format(fmt, ...)
+	local ok, result = pcall(string.format, fmt, ...)
+	return ok and result or ""
+end
+
+--- Clamp value between min and max
+---@param value number Value to clamp
+---@param min number Minimum value
+---@param max number Maximum value
+---@return number Clamped value
+function M.clamp(value, min, max)
+	return math.max(min, math.min(max, value))
+end
+
+--- Round number to specified decimal places
+---@param num number Number to round
+---@param decimals? integer Number of decimal places (default: 0)
+---@return number Rounded number
+function M.round(num, decimals)
+	decimals = decimals or 0
+	local mult = 10 ^ decimals
+	return math.floor(num * mult + 0.5) / mult
+end
+
+--- Check if value is in table
+---@param tbl table Table to search
+---@param value any Value to find
+---@return boolean True if value exists in table
+function M.contains(tbl, value)
+	for _, v in pairs(tbl) do
+		if v == value then
+			return true
+		end
+	end
+	return false
+end
+
+--- Get first element that matches predicate
+---@param tbl table Table to search
+---@param predicate function Function that returns true for matching element
+---@return any|nil First matching element or nil
+function M.find(tbl, predicate)
+	for _, v in pairs(tbl) do
+		if predicate(v) then
+			return v
+		end
+	end
+	return nil
+end
+
+--- Map table elements through function
+---@param tbl table Table to map
+---@param fn function Mapping function
+---@return table New table with mapped values
+function M.map(tbl, fn)
+	local result = {}
+	for k, v in pairs(tbl) do
+		result[k] = fn(v, k)
+	end
+	return result
+end
+
+--- Filter table elements
+---@param tbl table Table to filter
+---@param predicate function Function that returns true for elements to keep
+---@return table New table with filtered values
+function M.filter(tbl, predicate)
+	local result = {}
+	for k, v in pairs(tbl) do
+		if predicate(v, k) then
+			result[k] = v
+		end
+	end
+	return result
 end
 
 return M
