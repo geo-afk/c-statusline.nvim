@@ -542,6 +542,11 @@ vim.api.nvim_create_autocmd("LspProgress", {
 			return
 		end
 
+		-- Safety check for params structure
+		if not (data.params and data.params.value) then
+			return
+		end
+
 		if data.params.value.kind == "end" then
 			M.lsp_state.client_name = nil
 			M.lsp_state.title = nil
@@ -550,7 +555,8 @@ vim.api.nvim_create_autocmd("LspProgress", {
 			stop_spinner()
 			vim.defer_fn(vim.cmd.redrawstatus, 500)
 		else
-			M.lsp_state.client_name = vim.lsp.get_client_by_id(data.client_id).name
+			local client = vim.lsp.get_client_by_id(data.client_id)
+			M.lsp_state.client_name = client and client.name or nil
 			M.lsp_state.title = data.params.value.title
 			M.lsp_state.message = data.params.value.message
 			M.lsp_state.percentage = data.params.value.percentage
