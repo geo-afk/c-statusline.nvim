@@ -491,33 +491,32 @@ function M.progress_bar()
 	return cache.str
 end
 
--- LSP Progress State Management (event-driven, no continuous timer)
+-- LSP Progress State Management (event-driven)
 M.lsp_state = M.lsp_state
 	or {
-		clients = {}, -- Store per-client progress
+		client_name = nil,
+		title = nil,
+		message = nil,
+		percentage = nil,
 		spinner_index = 1,
-		spinner_active = false,
 		spinner_timer = nil,
 	}
 
--- Spinner frames (Braille patterns for smooth animation)
+-- Spinner frames
 local SPINNER_FRAMES = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" }
 
--- Start spinner animation (only when LSP is active)
+-- Start spinner animation
 local function start_spinner()
 	if M.lsp_state.spinner_timer then
-		return -- Already running
+		return
 	end
-
-	M.lsp_state.spinner_active = true
 	M.lsp_state.spinner_timer = vim.loop.new_timer()
 	M.lsp_state.spinner_timer:start(
 		100,
 		100,
 		vim.schedule_wrap(function()
 			M.lsp_state.spinner_index = (M.lsp_state.spinner_index % #SPINNER_FRAMES) + 1
-			-- Trigger statusline update via the main event system
-			vim.cmd("redrawstatus")
+			vim.cmd.redrawstatus()
 		end)
 	)
 end
@@ -529,79 +528,59 @@ local function stop_spinner()
 		M.lsp_state.spinner_timer:close()
 		M.lsp_state.spinner_timer = nil
 	end
-	M.lsp_state.spinner_active = false
 end
 
--- Format percentage consistently
-local function format_percentage(percentage)
-	if not percentage then
-		return nil
-	end
-	local pct = tonumber(percentage) or 0
-	return string.format("%d%%%%", math.floor(pct))
-end
-
--- Get active LSP progress messages
-local function get_active_progress()
-	local active = {}
-	local now = vim.loop.now()
-
-	-- Clean up old/stale messages (older than 30 seconds)
-	for client_id, data in pairs(M.lsp_state.clients) do
-		if now - data.timestamp > 30000 then
-			M.lsp_state.clients[client_id] = nil
-		elseif data.active then
-			table.insert(active, data)
+-- Setup autocmd for LspProgress events
+local statusline_augroup = vim.api.nvim_create_augroup("StatuslineLspProgress", { clear = true })
+vim.api.nvim_create_autocmd("LspProgress", {
+	group = statusline_augroup,
+	desc = "LSP Progress Tracker",
+	pattern = { "begin", "report", "end" },
+	callback = function(args)
+		local data = args.data
+		if not (data and data.client_id) then
+			return
 		end
-	end
 
-	return active
-end
+		if data.params.value.kind == "end" then
+			M.lsp_state.client_name = nil
+			M.lsp_state.title = nil
+			M.lsp_state.message = nil
+			M.lsp_state.percentage = nil
+			stop_spinner()
+			vim.defer_fn(vim.cmd.redrawstatus, 500)
+		else
+			M.lsp_state.client_name = vim.lsp.get_client_by_id(data.client_id).name
+			M.lsp_state.title = data.params.value.title
+			M.lsp_state.message = data.params.value.message
+			M.lsp_state.percentage = data.params.value.percentage
+			start_spinner()
+			vim.cmd.redrawstatus()
+		end
+	end,
+})
 
--- Main LSP progress component (event-driven, no polling)
+-- Main LSP progress component
 function M.lsp_progress()
-	-- Check window width
 	if vim.o.columns < 100 then
 		return ""
 	end
 
-	local active_progress = get_active_progress()
-
-	-- No active progress - stop spinner
-	if #active_progress == 0 then
-		stop_spinner()
+	if not M.lsp_state.title then
 		return ""
 	end
 
-	-- Start spinner only when we have active progress
-	start_spinner()
+	local parts = {}
+	local label = M.lsp_state.title or "Loading"
+	table.insert(parts, label)
 
-	-- Build simplified progress message: "spinner Loading (50%)"
-	local messages = {}
-
-	for _, progress in ipairs(active_progress) do
-		local parts = {}
-
-		-- Use title if available, otherwise use "Loading"
-		local label = progress.title and progress.title ~= "" and progress.title or "Loading"
-		table.insert(parts, label)
-
-		-- Add percentage if available
-		if progress.percentage then
-			table.insert(parts, "(" .. format_percentage(progress.percentage) .. ")")
-		end
-
-		table.insert(messages, table.concat(parts, " "))
+	if M.lsp_state.percentage then
+		local pct = math.floor(tonumber(M.lsp_state.percentage) or 0)
+		table.insert(parts, string.format("(%d%%%%)", pct))
 	end
 
-	if #messages == 0 then
-		stop_spinner()
-		return ""
-	end
-
-	-- Combine all messages with spinner
 	local spinner_frame = SPINNER_FRAMES[M.lsp_state.spinner_index]
-	local content = spinner_frame .. " " .. table.concat(messages, " | ")
+	local content = spinner_frame .. " " .. table.concat(parts, " ")
 
 	return utils.hl_str("SL_LspProgress", content) .. " "
 end
